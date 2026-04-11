@@ -1,6 +1,7 @@
-English|[简体中文](README_zh.md)
 
 # Octopus Manager
+
+English|[简体中文](README_zh.md)
 
 A Flutter-based management client for [Octopus](https://github.com/lingyuins/octopus) — an LLM API gateway and proxy manager.
 
