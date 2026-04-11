@@ -4,6 +4,10 @@ import 'package:octopusmanage/services/api_service.dart';
 import 'package:octopusmanage/services/octopus_api.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+enum WaitTimeUnit { ms, s, auto }
+
+const kWaitTimeUnitKey = 'wait_time_unit';
+
 class AppProvider extends ChangeNotifier {
   final ApiService _apiService = ApiService();
   late final OctopusApi api;
@@ -13,6 +17,7 @@ class AppProvider extends ChangeNotifier {
   String? _error;
   AppLocale _locale = AppLocale.en;
   bool? _bootstrapped;
+  WaitTimeUnit _waitTimeUnit = WaitTimeUnit.auto;
 
   bool get initialized => _initialized;
   bool get loading => _loading;
@@ -23,6 +28,7 @@ class AppProvider extends ChangeNotifier {
   AppLocale get locale => _locale;
   bool? get bootstrapped => _bootstrapped;
   bool get needsBootstrap => _bootstrapped == false;
+  WaitTimeUnit get waitTimeUnit => _waitTimeUnit;
 
   Locale get flutterLocale =>
       AppLocalizations.localeMap[_locale] ?? const Locale('en');
@@ -51,6 +57,13 @@ class AppProvider extends ChangeNotifier {
         final systemLocale = WidgetsBinding.instance.platformDispatcher.locale;
         _locale = AppLocalizations.fromLocale(systemLocale);
       }
+      final savedWaitUnit = prefs.getString(kWaitTimeUnitKey);
+      if (savedWaitUnit != null) {
+        _waitTimeUnit = WaitTimeUnit.values.firstWhere(
+          (e) => e.name == savedWaitUnit,
+          orElse: () => WaitTimeUnit.auto,
+        );
+      }
       await _apiService.loadSavedState();
       _initialized = true;
     } catch (e) {
@@ -59,6 +72,13 @@ class AppProvider extends ChangeNotifier {
       _loading = false;
       notifyListeners();
     }
+  }
+
+  Future<void> setWaitTimeUnit(WaitTimeUnit unit) async {
+    _waitTimeUnit = unit;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(kWaitTimeUnitKey, unit.name);
+    notifyListeners();
   }
 
   Future<void> setLocale(AppLocale locale) async {

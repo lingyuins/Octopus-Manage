@@ -162,6 +162,36 @@ class _SettingPageState extends State<SettingPage> {
                 ),
               ),
             ),
+            SliverToBoxAdapter(
+              child: Card(
+                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                child: ListTile(
+                  leading: const Icon(Icons.timer),
+                  title: Text(loc.t('wait_time_unit')),
+                  trailing: DropdownButton<WaitTimeUnit>(
+                    value: provider.waitTimeUnit,
+                    underline: const SizedBox(),
+                    items: [
+                      DropdownMenuItem(
+                        value: WaitTimeUnit.auto,
+                        child: Text(loc.t('wait_time_unit_auto')),
+                      ),
+                      DropdownMenuItem(
+                        value: WaitTimeUnit.s,
+                        child: Text(loc.t('wait_time_unit_s')),
+                      ),
+                      DropdownMenuItem(
+                        value: WaitTimeUnit.ms,
+                        child: Text(loc.t('wait_time_unit_ms')),
+                      ),
+                    ],
+                    onChanged: (v) {
+                      if (v != null) provider.setWaitTimeUnit(v);
+                    },
+                  ),
+                ),
+              ),
+            ),
             SliverList(
               delegate: SliverChildBuilderDelegate((context, index) {
                 final s = _settings[index];
