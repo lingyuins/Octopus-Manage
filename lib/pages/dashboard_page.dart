@@ -18,6 +18,7 @@ class _DashboardPageState extends State<DashboardPage> {
   StatsMetrics? _total;
   List<StatsDaily> _daily = [];
   bool _loading = true;
+  bool _showToday = true;
 
   @override
   void initState() {
@@ -71,31 +72,49 @@ class _DashboardPageState extends State<DashboardPage> {
           else ...[
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Text(
-                  loc.t('today'),
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
+                padding: const EdgeInsets.fromLTRB(12, 16, 12, 0),
+                child: Card(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(4, 4, 4, 0),
+                        child: SegmentedButton<bool>(
+                          segments: [
+                            ButtonSegment(
+                              value: true,
+                              label: Text(loc.t('today')),
+                            ),
+                            ButtonSegment(
+                              value: false,
+                              label: Text(loc.t('total')),
+                            ),
+                          ],
+                          selected: {_showToday},
+                          onSelectionChanged: (v) =>
+                              setState(() => _showToday = v.first),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: _buildStatsGrid(
+                          _showToday
+                              ? (_today ?? StatsMetrics())
+                              : (_total ?? StatsMetrics()),
+                          loc,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            ),
-            SliverToBoxAdapter(
-              child: _buildStatsGrid(_today ?? StatsMetrics(), loc),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-                child: Text(
-                  loc.t('total'),
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: _buildStatsGrid(_total ?? StatsMetrics(), loc),
             ),
             if (_daily.isNotEmpty) ...[
               SliverToBoxAdapter(
