@@ -42,6 +42,18 @@ class AppLocalizations {
     'avg_wait': {AppLocale.en: 'Avg Wait', AppLocale.zh: '平均等待'},
     'daily_requests': {AppLocale.en: 'Daily Requests', AppLocale.zh: '每日请求'},
     'daily_cost': {AppLocale.en: 'Daily Cost', AppLocale.zh: '每日费用'},
+    'daily_chart': {AppLocale.en: 'Daily Trend', AppLocale.zh: '每日趋势'},
+
+    // Ranking
+    'ranking': {AppLocale.en: 'Ranking', AppLocale.zh: '排行榜'},
+    'sort_by_cost': {AppLocale.en: 'Cost', AppLocale.zh: '费用'},
+    'sort_by_count': {AppLocale.en: 'Count', AppLocale.zh: '请求数'},
+    'sort_by_tokens': {AppLocale.en: 'Tokens', AppLocale.zh: 'Token数'},
+    'sort_by_key_usage': {AppLocale.en: 'Key Usage', AppLocale.zh: 'Key 用量'},
+    'api_key_leaderboard': {AppLocale.en: 'API Key Leaderboard', AppLocale.zh: 'API Key 排行'},
+    'no_data': {AppLocale.en: 'No data', AppLocale.zh: '暂无数据'},
+    'success_rate_label': {AppLocale.en: 'Success Rate', AppLocale.zh: '成功率'},
+    'channel_leaderboard': {AppLocale.en: 'Channel Leaderboard', AppLocale.zh: '渠道排行'},
 
     // Channel
     'keys': {AppLocale.en: 'Keys', AppLocale.zh: '密钥'},
