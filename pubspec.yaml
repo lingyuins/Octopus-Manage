@@ -1,7 +1,7 @@
 name: octopusmanage
 description: "Octopus LLM API Manager - Mobile Client"
 publish_to: 'none'
-version: 1.0.0+1
+version: 0.0.1+1
 
 environment:
   sdk: ^3.10.4
