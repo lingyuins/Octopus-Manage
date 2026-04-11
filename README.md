@@ -4,7 +4,8 @@ A Flutter-based management client for [Octopus](https://github.com/lingyuins/oct
 
 ## Features
 
-- **Dashboard** — Real-time stats: requests, costs, tokens, success rate with daily charts
+- **Dashboard** — Real-time stats (requests, costs, tokens, success rate) with combined daily trend chart
+- **Ranking** — Channel and API key leaderboard with 4 sort modes: cost, request count, tokens, and key usage
 - **Channel Management** — Add, edit, enable/disable, and sync upstream LLM provider channels
 - **Group Management** — Configure routing groups with round-robin, random, failover, and weighted modes
 - **API Key Management** — Create, edit, and delete API keys with cost limits and expiration
