@@ -54,6 +54,14 @@ class AppLocalizations {
     'no_data': {AppLocale.en: 'No data', AppLocale.zh: '暂无数据'},
     'success_rate_label': {AppLocale.en: 'Success Rate', AppLocale.zh: '成功率'},
     'channel_leaderboard': {AppLocale.en: 'Channel Leaderboard', AppLocale.zh: '渠道排行'},
+    'show_more': {AppLocale.en: 'Show more', AppLocale.zh: '展开更多'},
+    'show_less': {AppLocale.en: 'Show less', AppLocale.zh: '收起'},
+
+    // Wait time unit
+    'wait_time_unit': {AppLocale.en: 'Wait Time Unit', AppLocale.zh: '等待时间单位'},
+    'wait_time_unit_ms': {AppLocale.en: 'Milliseconds', AppLocale.zh: '毫秒'},
+    'wait_time_unit_s': {AppLocale.en: 'Seconds', AppLocale.zh: '秒'},
+    'wait_time_unit_auto': {AppLocale.en: 'Auto', AppLocale.zh: '自动'},
 
     // Channel
     'keys': {AppLocale.en: 'Keys', AppLocale.zh: '密钥'},
