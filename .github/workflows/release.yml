@@ -40,6 +40,16 @@ jobs:
           sed -i "s/^version:.*/version: ${VERSION}+${BUILD_NUMBER}/" pubspec.yaml
           cat pubspec.yaml | head -5
 
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/release.jks
+          cat > android/key.properties << EOF
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=release
+          storeFile=release.jks
+          EOF
+
       - name: Build Android APK
         run: flutter build apk --release
 

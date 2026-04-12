@@ -5,6 +5,7 @@ class Group {
   final String matchRegex;
   final int firstTokenTimeOut;
   final int sessionKeepTime;
+  final String createdTime;
   final List<GroupItem> items;
 
   Group({
@@ -14,6 +15,7 @@ class Group {
     this.matchRegex = '',
     this.firstTokenTimeOut = 0,
     this.sessionKeepTime = 0,
+    this.createdTime = '',
     this.items = const [],
   });
 
@@ -25,6 +27,7 @@ class Group {
       matchRegex: json['match_regex'] as String? ?? '',
       firstTokenTimeOut: json['first_token_time_out'] as int? ?? 0,
       sessionKeepTime: json['session_keep_time'] as int? ?? 0,
+      createdTime: json['created_time'] as String? ?? '',
       items:
           (json['items'] as List?)
               ?.map((e) => GroupItem.fromJson(e as Map<String, dynamic>))
@@ -41,6 +44,7 @@ class Group {
       'match_regex': matchRegex,
       'first_token_time_out': firstTokenTimeOut,
       'session_keep_time': sessionKeepTime,
+      if (createdTime.isNotEmpty) 'created_time': createdTime,
       'items': items.map((e) => e.toJson()).toList(),
     };
   }

@@ -1,7 +1,13 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:octopusmanage/l10n/app_localizations.dart';
 import 'package:octopusmanage/models/relay_log.dart';
 import 'package:octopusmanage/providers/app_provider.dart';
+import 'package:octopusmanage/theme/app_theme.dart';
+import 'package:octopusmanage/widgets/app_card.dart';
+import 'package:octopusmanage/widgets/app_chips.dart';
+import 'package:octopusmanage/widgets/app_dialogs.dart';
+import 'package:octopusmanage/widgets/app_empty_state.dart';
 import 'package:provider/provider.dart';
 
 class LogPage extends StatefulWidget {
@@ -47,36 +53,33 @@ class _LogPageState extends State<LogPage> {
   }
 
   Future<void> _clearLogs(AppLocalizations loc) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await AppConfirmDialog.show(
       context: context,
-      builder: (_) => AlertDialog(
-        title: Text(loc.t('clear_logs')),
-        content: Text(loc.t('clear_logs_confirm')),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(loc.t('cancel')),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(
-              loc.t('clear'),
-              style: const TextStyle(color: Colors.red),
-            ),
-          ),
-        ],
-      ),
+      title: loc.t('clear_logs'),
+      content: loc.t('clear_logs_confirm'),
+      confirmText: loc.t('clear'),
+      cancelText: loc.t('cancel'),
+      isDanger: true,
     );
-    if (confirmed != true) return;
+    if (!confirmed) return;
     try {
       final api = context.read<AppProvider>().api;
       await api.clearLogs();
       _loadLogs(refresh: true);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        showCupertinoDialog(
+          context: context,
+          builder: (_) => CupertinoAlertDialog(
+            title: Text(e.toString()),
+            actions: [
+              CupertinoDialogAction(
+                child: Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
       }
     }
   }
@@ -90,88 +93,177 @@ class _LogPageState extends State<LogPage> {
   @override
   Widget build(BuildContext context) {
     final loc = context.watch<AppProvider>().loc;
-    return CustomScrollView(
-      slivers: [
-        SliverAppBar(
-          title: Text(loc.t('logs')),
-          floating: true,
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.delete_sweep),
-              onPressed: () => _clearLogs(loc),
-            ),
-          ],
-        ),
-        if (_loading && _logs.isEmpty)
-          const SliverFillRemaining(
-            child: Center(child: CircularProgressIndicator()),
-          )
-        else if (_logs.isEmpty)
-          SliverFillRemaining(child: Center(child: Text(loc.t('no_logs'))))
-        else ...[
-          SliverList(
-            delegate: SliverChildBuilderDelegate((context, index) {
-              final log = _logs[index];
-              return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-                child: ListTile(
-                  dense: true,
-                  leading: Icon(
-                    log.hasError ? Icons.error : Icons.check_circle,
-                    color: log.hasError ? Colors.red : Colors.green,
-                    size: 20,
-                  ),
-                  title: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          log.requestModelName,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                      Text(
-                        '\$${log.cost.toStringAsFixed(4)}',
-                        style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                      ),
-                    ],
-                  ),
-                  subtitle: Text(
-                    '${log.channelName} | ${log.inputTokens}+${log.outputTokens}tok | ${log.useTime}ms',
-                    style: TextStyle(fontSize: 11, color: Colors.grey[500]),
-                  ),
-                  trailing: Text(
-                    _formatTime(log.time),
-                    style: TextStyle(fontSize: 11, color: Colors.grey[400]),
-                  ),
-                ),
-              );
-            }, childCount: _logs.length),
-          ),
-          if (_hasMore)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: OutlinedButton(
-                  onPressed: _loading
-                      ? null
-                      : () {
-                          _loadLogs();
-                        },
-                  child: _loading
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text(loc.t('load_more')),
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return CupertinoPageScaffold(
+      backgroundColor: AppTheme.getSurfaceLowest(colorScheme),
+      child: SafeArea(
+        bottom: false,
+        child: CustomScrollView(
+          slivers: [
+            CupertinoSliverNavigationBar(
+              largeTitle: Text(loc.t('logs')),
+              backgroundColor: AppTheme.getSurfaceLowest(
+                colorScheme,
+              ).withValues(alpha: 0.85),
+              border: null,
+              trailing: GestureDetector(
+                onTap: () => _clearLogs(loc),
+                child: Icon(
+                  CupertinoIcons.trash,
+                  size: 22,
+                  color: colorScheme.primary,
                 ),
               ),
             ),
-        ],
-      ],
+            if (_loading && _logs.isEmpty)
+              const SliverFillRemaining(
+                hasScrollBody: false,
+                child: AppLoadingState(),
+              )
+            else if (_logs.isEmpty)
+              SliverFillRemaining(
+                child: AppEmptyState(
+                  icon: CupertinoIcons.doc_text,
+                  title: loc.t('no_logs'),
+                ),
+              )
+            else ...[
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.spacingLg,
+                ),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final log = _logs[index];
+                    return AppCard(
+                      margin: const EdgeInsets.only(bottom: AppTheme.spacingSm),
+                      padding: const EdgeInsets.all(AppTheme.spacingMd),
+                      borderRadius: AppTheme.radiusLarge,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                width: 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  color: log.hasError
+                                      ? colorScheme.error.withValues(alpha: 0.1)
+                                      : const Color(
+                                          0xFF34C759,
+                                        ).withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(
+                                    AppTheme.radiusSmall,
+                                  ),
+                                ),
+                                child: Icon(
+                                  log.hasError
+                                      ? CupertinoIcons.xmark_circle
+                                      : CupertinoIcons.checkmark_circle,
+                                  color: log.hasError
+                                      ? colorScheme.error
+                                      : const Color(0xFF34C759),
+                                  size: 18,
+                                ),
+                              ),
+                              const SizedBox(width: AppTheme.spacingSm),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      log.requestModelName,
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w500,
+                                        color: colorScheme.onSurface,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    Text(
+                                      log.channelName,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: colorScheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    '\$${log.cost.toStringAsFixed(4)}',
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      color: colorScheme.primary,
+                                    ),
+                                  ),
+                                  Text(
+                                    _formatTime(log.time),
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppTheme.spacingSm),
+                          Divider(
+                            color: colorScheme.outlineVariant.withValues(
+                              alpha: 0.2,
+                            ),
+                          ),
+                          const SizedBox(height: AppTheme.spacingXs),
+                          Row(
+                            children: [
+                              AppInfoChip(
+                                icon: CupertinoIcons.arrow_up,
+                                label: '${log.inputTokens}',
+                              ),
+                              const SizedBox(width: AppTheme.spacingSm),
+                              AppInfoChip(
+                                icon: CupertinoIcons.arrow_down,
+                                label: '${log.outputTokens}',
+                              ),
+                              const Spacer(),
+                              AppInfoChip(
+                                icon: CupertinoIcons.clock,
+                                label: '${log.useTime}ms',
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  }, childCount: _logs.length),
+                ),
+              ),
+              if (_hasMore)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppTheme.spacingLg),
+                    child: CupertinoButton(
+                      onPressed: _loading ? null : () => _loadLogs(),
+                      child: _loading
+                          ? const CupertinoActivityIndicator(radius: 12)
+                          : Text(loc.t('load_more')),
+                    ),
+                  ),
+                ),
+              const SliverPadding(padding: EdgeInsets.only(bottom: 96)),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

@@ -1,13 +1,15 @@
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:octopusmanage/l10n/app_localizations.dart';
+import 'package:octopusmanage/models/api_key.dart';
 import 'package:octopusmanage/models/channel.dart';
 import 'package:octopusmanage/models/stats.dart';
 import 'package:octopusmanage/providers/app_provider.dart';
-import 'package:octopusmanage/widgets/stats_card.dart';
+import 'package:octopusmanage/theme/app_theme.dart';
+import 'package:octopusmanage/widgets/app_card.dart';
+import 'package:octopusmanage/widgets/app_empty_state.dart';
 import 'package:provider/provider.dart';
-
-enum _RankSortMode { cost, count, tokens, keyUsage }
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -24,10 +26,12 @@ class _DashboardPageState extends State<DashboardPage> {
   List<Channel> _channels = [];
   bool _loading = true;
   bool _showToday = true;
-  _RankSortMode _rankSortMode = _RankSortMode.cost;
   bool _rankingExpanded = false;
 
+  Map<int, APIKey> _apiKeysMap = {};
+
   static const int _rankingPreviewCount = 5;
+  static const int _rankingPreviewCountMobile = 3;
 
   @override
   void initState() {
@@ -39,21 +43,25 @@ class _DashboardPageState extends State<DashboardPage> {
     setState(() => _loading = true);
     try {
       final api = context.read<AppProvider>().api;
+
       final results = await Future.wait([
         api.getStatsToday(),
         api.getStatsTotal(),
         api.getStatsDaily(),
         api.getStatsApiKey(),
         api.getChannels(),
+        _loadApiKeysForMapping(),
       ]);
+
       if (mounted) {
         setState(() {
-          _today = results[0] as StatsMetrics;
-          _total = results[1] as StatsMetrics;
+          _today = results[0] as StatsMetrics?;
+          _total = results[1] as StatsMetrics?;
           _daily = results[2] as List<StatsDaily>;
           _apiKeyStats = results[3] as List<StatsAPIKeyEntry>;
           _channels = results[4] as List<Channel>;
           _loading = false;
+          _rankingExpanded = false;
         });
       }
     } catch (e) {
@@ -61,513 +69,847 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  String _formatWaitTime(int ms, AppLocalizations loc, WaitTimeUnit unit) {
-    switch (unit) {
-      case WaitTimeUnit.ms:
-        return '${ms}ms';
-      case WaitTimeUnit.s:
-        return '${(ms / 1000).toStringAsFixed(ms % 1000 == 0 ? 0 : 1)}s';
-      case WaitTimeUnit.auto:
-        if (ms < 1000) return '${ms}ms';
-        if (ms < 60000) return '${(ms / 1000).toStringAsFixed(ms % 1000 == 0 ? 0 : 1)}s';
-        return '${(ms / 3600000).toStringAsFixed(ms % 3600000 == 0 ? 0 : 1)}h';
-    }
+  Future<void> _loadApiKeysForMapping() async {
+    try {
+      final apiKeys = await context.read<AppProvider>().api.getApiKeys();
+      _apiKeysMap = {for (var k in apiKeys) k.id: k};
+    } catch (_) {}
   }
+
+  String _getApiKeyDisplayName(int id) {
+    final key = _apiKeysMap[id];
+    if (key != null && key.name.isNotEmpty) {
+      return key.name;
+    }
+    return 'Key #$id';
+  }
+
+  String _formatNum(int num) {
+    if (num >= 1000000) return '${(num / 1000000).toStringAsFixed(1)}M';
+    if (num >= 1000) return '${(num / 1000).toStringAsFixed(1)}K';
+    return num.toString();
+  }
+
+  String _formatCurrency(double value, {int digits = 4}) {
+    return '\$${value.toStringAsFixed(digits)}';
+  }
+
+  String _formatCurrencyCompact(num value) {
+    return '\$${value.toString()}';
+  }
+
+  StatsMetrics get _selectedStats =>
+      _showToday ? (_today ?? StatsMetrics()) : (_total ?? StatsMetrics());
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<AppProvider>();
     final loc = provider.loc;
-    final outlineColor = Theme.of(context).colorScheme.outlineVariant;
-    return RefreshIndicator(
-      onRefresh: _loadStats,
-      child: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            title: Text(loc.t('dashboard')),
-            floating: true,
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.logout),
-                onPressed: () => context.read<AppProvider>().logout(),
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    if (_loading) {
+      return const AppLoadingState();
+    }
+
+    return CupertinoPageScaffold(
+      backgroundColor: AppTheme.getSurfaceLowest(colorScheme),
+      child: SafeArea(
+        bottom: false,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
+          ),
+          slivers: [
+            CupertinoSliverNavigationBar(
+              largeTitle: Text(loc.t('dashboard')),
+              backgroundColor: AppTheme.getSurfaceLowest(
+                colorScheme,
+              ).withValues(alpha: 0.85),
+              border: null,
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CupertinoSlidingSegmentedControl<bool>(
+                    groupValue: _showToday,
+                    onValueChanged: (v) {
+                      if (v != null) setState(() => _showToday = v);
+                    },
+                    children: {
+                      true: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Text(
+                          loc.t('today'),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ),
+                      false: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Text(
+                          loc.t('total'),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    },
+                  ),
+                  const SizedBox(width: 4),
+                  GestureDetector(
+                    onTap: _loadStats,
+                    child: Icon(
+                      CupertinoIcons.refresh,
+                      size: 22,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  GestureDetector(
+                    onTap: () => context.read<AppProvider>().logout(),
+                    child: Icon(
+                      CupertinoIcons.square_arrow_right,
+                      size: 22,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            _buildCompactOverview(
+              theme,
+              colorScheme,
+              loc,
+              provider.waitTimeUnit,
+            ),
+            if (_daily.isNotEmpty) _buildDailyChart(theme, colorScheme, loc),
+            _buildRankingSection(theme, colorScheme, loc),
+            const SliverPadding(padding: EdgeInsets.only(bottom: 32)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompactOverview(
+    ThemeData theme,
+    ColorScheme colorScheme,
+    AppLocalizations loc,
+    WaitTimeUnit waitUnit,
+  ) {
+    final stats = _selectedStats;
+
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(
+        AppTheme.spacingLg,
+        AppTheme.spacingSm,
+        AppTheme.spacingLg,
+        0,
+      ),
+      sliver: SliverToBoxAdapter(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: AppTheme.spacingSm,
+              crossAxisSpacing: AppTheme.spacingSm,
+              childAspectRatio: 1.6,
+              children: [
+                _buildStatItem(
+                  loc.t('requests'),
+                  _formatNum(stats.requestSuccess + stats.requestFailed),
+                  CupertinoIcons.paperplane,
+                  const Color(0xFF007AFF),
+                  theme,
+                  colorScheme,
+                  '${loc.t('success')}: ${_formatNum(stats.requestSuccess)}',
+                ),
+                _buildStatItem(
+                  loc.t('cost'),
+                  _formatCurrency(stats.totalCost),
+                  CupertinoIcons.money_dollar_circle,
+                  const Color(0xFF34C759),
+                  theme,
+                  colorScheme,
+                  '${loc.t('input')}: ${_formatCurrency(stats.inputCost)}',
+                ),
+                _buildStatItem(
+                  loc.t('tokens'),
+                  _formatNum(stats.totalTokens),
+                  CupertinoIcons.chart_pie,
+                  const Color(0xFFFF9500),
+                  theme,
+                  colorScheme,
+                  'In: ${_formatNum(stats.inputToken)}',
+                ),
+                _buildStatItem(
+                  loc.t('success_rate'),
+                  '${(stats.successRate * 100).toStringAsFixed(1)}%',
+                  CupertinoIcons.arrow_up_circle,
+                  const Color(0xFFAF52DE),
+                  theme,
+                  colorScheme,
+                  'Avg: ${_formatWaitTime(stats.waitTime, loc)}',
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatItem(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+    ThemeData theme,
+    ColorScheme colorScheme,
+    String? subtitle,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(AppTheme.spacingMd),
+      decoration: BoxDecoration(
+        color: AppTheme.getSurfaceLow(colorScheme),
+        borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.15),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 12, color: color),
+              const SizedBox(width: AppTheme.spacingXs),
+              Text(
+                label,
+                style: theme.textTheme.caption?.copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ],
           ),
-          if (_loading)
-            const SliverFillRemaining(
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else ...[
-            _buildStatsCard(outlineColor, loc, provider.waitTimeUnit),
-            if (_daily.isNotEmpty) _buildDailyChartCard(outlineColor, loc),
-            _buildRankingCard(outlineColor, loc),
-            const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: color,
+              height: 1,
+              letterSpacing: -0.5,
+            ),
+          ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 2),
+            Text(subtitle, style: theme.textTheme.caption),
           ],
         ],
       ),
     );
   }
 
-  // ==================== Stats Card ====================
-
-  Widget _buildStatsCard(Color outlineColor, AppLocalizations loc, WaitTimeUnit waitUnit) {
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-        child: Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: outlineColor),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(4, 4, 4, 0),
-                child: SegmentedButton<bool>(
-                  segments: [
-                    ButtonSegment(value: true, label: Text(loc.t('today'))),
-                    ButtonSegment(value: false, label: Text(loc.t('total'))),
-                  ],
-                  selected: {_showToday},
-                  onSelectionChanged: (v) => setState(() => _showToday = v.first),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-                child: _buildStatsGrid(
-                  _showToday ? (_today ?? StatsMetrics()) : (_total ?? StatsMetrics()),
-                  loc,
-                  waitUnit,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+  String _formatWaitTime(int ms, AppLocalizations loc) {
+    if (ms < 1000) return '${ms}ms';
+    if (ms < 60000) return '${(ms / 1000).toStringAsFixed(1)}s';
+    return '${(ms / 60000).toStringAsFixed(1)}m';
   }
 
-  Widget _buildStatsGrid(StatsMetrics stats, AppLocalizations loc, WaitTimeUnit waitUnit) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: GridView.count(
-        crossAxisCount: 2,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        mainAxisSpacing: 8,
-        crossAxisSpacing: 8,
-        childAspectRatio: 1.6,
-        children: [
-          StatsCard(
-            title: loc.t('requests'),
-            value: _formatNum(stats.requestSuccess + stats.requestFailed),
-            subtitle: '${loc.t('success')}: ${_formatNum(stats.requestSuccess)} | ${loc.t('failed')}: ${_formatNum(stats.requestFailed)}',
-            icon: Icons.send,
-            color: Colors.blue,
-          ),
-          StatsCard(
-            title: loc.t('cost'),
-            value: '\$${stats.totalCost.toStringAsFixed(4)}',
-            subtitle: 'In: \$${stats.inputCost.toStringAsFixed(4)}',
-            icon: Icons.attach_money,
-            color: Colors.green,
-          ),
-          StatsCard(
-            title: loc.t('tokens'),
-            value: _formatNum(stats.totalTokens),
-            subtitle: 'In: ${_formatNum(stats.inputToken)}',
-            icon: Icons.data_usage,
-            color: Colors.orange,
-          ),
-          StatsCard(
-            title: loc.t('success_rate'),
-            value: '${(stats.successRate * 100).toStringAsFixed(1)}%',
-            subtitle: '${loc.t('avg_wait')}: ${_formatWaitTime(stats.waitTime, loc, waitUnit)}',
-            icon: Icons.trending_up,
-            color: Colors.purple,
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ==================== Daily Chart Card ====================
-
-  Widget _buildDailyChartCard(Color outlineColor, AppLocalizations loc) {
+  Widget _buildDailyChart(
+    ThemeData theme,
+    ColorScheme colorScheme,
+    AppLocalizations loc,
+  ) {
     final data = _daily.reversed.toList();
+
     return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-        child: Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: outlineColor),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: Row(
-                  children: [
-                    Text(
-                      loc.t('daily_chart'),
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const Spacer(),
-                    _buildLegend(Colors.blue, loc.t('daily_requests')),
-                    const SizedBox(width: 12),
-                    _buildLegend(Colors.green, loc.t('daily_cost')),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(8),
-                child: _buildCombinedDailyChart(data, loc),
-              ),
-            ],
-          ),
+      child: AppSectionCard(
+        title: loc.t('daily_chart'),
+        subtitle: loc.t('daily_chart_subtitle'),
+        margin: const EdgeInsets.fromLTRB(
+          AppTheme.spacingLg,
+          AppTheme.spacingLg,
+          AppTheme.spacingLg,
+          0,
+        ),
+        padding: const EdgeInsets.all(AppTheme.spacingMd),
+        child: SizedBox(
+          height: 180,
+          child: _buildCombinedDailyChart(data, loc, theme, colorScheme),
         ),
       ),
     );
   }
 
-  Widget _buildLegend(Color color, String label) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 4),
-        Text(label, style: const TextStyle(fontSize: 11)),
-      ],
-    );
-  }
-
-  Widget _buildCombinedDailyChart(List<StatsDaily> data, AppLocalizations loc) {
+  Widget _buildCombinedDailyChart(
+    List<StatsDaily> data,
+    AppLocalizations loc,
+    ThemeData theme,
+    ColorScheme colorScheme,
+  ) {
     if (data.isEmpty) return const SizedBox.shrink();
 
     double maxRequests = 0;
     double maxCost = 0;
     for (final d in data) {
-      final r = d.metrics.requestSuccess.toDouble() + d.metrics.requestFailed.toDouble();
-      if (r > maxRequests) maxRequests = r;
+      final requests =
+          d.metrics.requestSuccess.toDouble() +
+          d.metrics.requestFailed.toDouble();
+      if (requests > maxRequests) maxRequests = requests;
       if (d.metrics.totalCost > maxCost) maxCost = d.metrics.totalCost;
     }
 
-    return SizedBox(
-      height: 200,
-      child: LineChart(
-        LineChartData(
-          gridData: FlGridData(show: true, drawVerticalLine: false),
-          titlesData: FlTitlesData(
-            leftTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                reservedSize: 50,
-                getTitlesWidget: (v, _) => Padding(
-                  padding: const EdgeInsets.only(right: 4),
-                  child: Text(_formatNum(v.toInt()), style: const TextStyle(fontSize: 10, color: Colors.blue)),
-                ),
-              ),
-            ),
-            rightTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                reservedSize: 50,
-                getTitlesWidget: (v, _) => Padding(
-                  padding: const EdgeInsets.only(left: 4),
-                  child: Text('\$${v.toInt()}', style: const TextStyle(fontSize: 10, color: Colors.green)),
-                ),
-              ),
-            ),
-            bottomTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                getTitlesWidget: (v, _) {
-                  final i = v.toInt();
-                  if (i < 0 || i >= data.length) return const SizedBox();
-                  final d = data[i].date;
-                  return Text(d.length >= 5 ? d.substring(5) : d, style: const TextStyle(fontSize: 10));
-                },
-                interval: data.length > 7 ? (data.length / 7).ceilToDouble() : 1,
-              ),
-            ),
-            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+    return LineChart(
+      LineChartData(
+        minX: 0,
+        maxX: (data.length - 1).toDouble(),
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          horizontalInterval: maxRequests > 0 ? maxRequests / 3 : 1,
+          getDrawingHorizontalLine: (_) => FlLine(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.2),
+            strokeWidth: 0.5,
           ),
-          borderData: FlBorderData(show: false),
-          lineBarsData: [
-            LineChartBarData(
-              spots: data.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value.metrics.requestSuccess.toDouble() + e.value.metrics.requestFailed.toDouble())).toList(),
-              isCurved: true, color: Colors.blue, barWidth: 2,
-              dotData: const FlDotData(show: false),
-              belowBarData: BarAreaData(show: true, color: Colors.blue.withValues(alpha: 0.08)),
+        ),
+        titlesData: FlTitlesData(
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 32,
+              getTitlesWidget: (v, _) => Text(
+                _formatNum(v.toInt()),
+                style: TextStyle(color: const Color(0xFF007AFF), fontSize: 9),
+              ),
             ),
-            LineChartBarData(
-              spots: maxCost > 0
-                  ? data.asMap().entries.map((e) => FlSpot(e.key.toDouble(), maxRequests > 0 ? (e.value.metrics.totalCost / maxCost) * maxRequests : 0)).toList()
-                  : data.asMap().entries.map((e) => FlSpot(e.key.toDouble(), 0)).toList(),
-              isCurved: true, color: Colors.green, barWidth: 2,
-              dotData: const FlDotData(show: false),
-              belowBarData: BarAreaData(show: true, color: Colors.green.withValues(alpha: 0.08)),
+          ),
+          rightTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 36,
+              getTitlesWidget: (v, _) => Text(
+                _formatCurrencyCompact(v.toInt()),
+                style: TextStyle(color: const Color(0xFF34C759), fontSize: 9),
+              ),
             ),
-          ],
-          lineTouchData: LineTouchData(
-            touchTooltipData: LineTouchTooltipData(
-              getTooltipItems: (spots) => spots.map((s) {
-                if (s.barIndex == 0) {
-                  final i = s.x.toInt();
-                  final count = i >= 0 && i < data.length ? (data[i].metrics.requestSuccess + data[i].metrics.requestFailed) : 0;
-                  return LineTooltipItem(
-                    '${loc.t('daily_requests')}: $count',
-                    const TextStyle(color: Colors.blue, fontSize: 12),
-                  );
-                } else {
-                  final i = s.x.toInt();
-                  final cost = i >= 0 && i < data.length ? data[i].metrics.totalCost : 0.0;
-                  return LineTooltipItem(
-                    '${loc.t('daily_cost')}: \$${cost.toStringAsFixed(4)}',
-                    const TextStyle(color: Colors.green, fontSize: 12),
-                  );
-                }
-              }).toList(),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              getTitlesWidget: (v, _) {
+                final i = v.toInt();
+                if (i < 0 || i >= data.length) return const SizedBox();
+                final date = data[i].date;
+                return Text(
+                  date.length >= 5 ? date.substring(5) : date,
+                  style: const TextStyle(fontSize: 9),
+                );
+              },
+              interval: data.length > 5 ? (data.length / 5).ceilToDouble() : 1,
             ),
+          ),
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        lineBarsData: [
+          LineChartBarData(
+            spots: data
+                .asMap()
+                .entries
+                .map(
+                  (e) => FlSpot(
+                    e.key.toDouble(),
+                    e.value.metrics.requestSuccess.toDouble() +
+                        e.value.metrics.requestFailed.toDouble(),
+                  ),
+                )
+                .toList(),
+            isCurved: true,
+            color: const Color(0xFF007AFF),
+            barWidth: 2.5,
+            dotData: FlDotData(
+              show: data.length <= 5,
+              getDotPainter: (spot, xPercent, bar, index) => FlDotCirclePainter(
+                radius: 2,
+                color: const Color(0xFF007AFF),
+                strokeWidth: 0,
+              ),
+            ),
+            belowBarData: BarAreaData(
+              show: true,
+              color: const Color(0xFF007AFF).withValues(alpha: 0.06),
+            ),
+          ),
+          LineChartBarData(
+            spots: maxCost > 0
+                ? data
+                      .asMap()
+                      .entries
+                      .map(
+                        (e) => FlSpot(
+                          e.key.toDouble(),
+                          maxRequests > 0
+                              ? (e.value.metrics.totalCost / maxCost) *
+                                    maxRequests
+                              : 0,
+                        ),
+                      )
+                      .toList()
+                : data.map((e) => FlSpot(0, 0)).toList(),
+            isCurved: true,
+            color: const Color(0xFF34C759),
+            barWidth: 2.5,
+            dotData: const FlDotData(show: false),
+            belowBarData: BarAreaData(
+              show: true,
+              color: const Color(0xFF34C759).withValues(alpha: 0.06),
+            ),
+          ),
+        ],
+        lineTouchData: LineTouchData(
+          touchTooltipData: LineTouchTooltipData(
+            getTooltipItems: (spots) => spots.map((s) {
+              if (s.barIndex == 0) {
+                final i = s.x.toInt();
+                final count = i >= 0 && i < data.length
+                    ? data[i].metrics.requestSuccess +
+                          data[i].metrics.requestFailed
+                    : 0;
+                return LineTooltipItem(
+                  '${loc.t('daily_requests')}: $count',
+                  const TextStyle(color: Color(0xFF007AFF), fontSize: 11),
+                );
+              }
+              final i = s.x.toInt();
+              final cost = i >= 0 && i < data.length
+                  ? data[i].metrics.totalCost
+                  : 0.0;
+              return LineTooltipItem(
+                '${loc.t('daily_cost')}: ${_formatCurrency(cost)}',
+                const TextStyle(color: Color(0xFF34C759), fontSize: 11),
+              );
+            }).toList(),
           ),
         ),
       ),
     );
   }
 
-  // ==================== Ranking Card ====================
+  Widget _buildRankingSection(
+    ThemeData theme,
+    ColorScheme colorScheme,
+    AppLocalizations loc,
+  ) {
+    final tokenRanking = _getTokenRanking();
+    final requestRanking = _getRequestRanking();
+    final apiKeyRanking = _getApiKeyRanking();
 
-  Widget _buildRankingCard(Color outlineColor, AppLocalizations loc) {
-    final sortedList = _getSortedRankingList();
-    final hasMore = sortedList.length > _rankingPreviewCount;
+    final isMobile = Responsive.isCompact(context);
+    final previewCount = isMobile
+        ? _rankingPreviewCountMobile
+        : _rankingPreviewCount;
 
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-        child: Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: outlineColor),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                child: Text(
-                  loc.t('ranking'),
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              // Sort mode buttons below the title
-              Padding(
-                padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
-                child: SegmentedButton<_RankSortMode>(
-                  segments: [
-                    ButtonSegment(value: _RankSortMode.cost, label: Text(loc.t('sort_by_cost'), style: const TextStyle(fontSize: 11))),
-                    ButtonSegment(value: _RankSortMode.count, label: Text(loc.t('sort_by_count'), style: const TextStyle(fontSize: 11))),
-                    ButtonSegment(value: _RankSortMode.tokens, label: Text(loc.t('sort_by_tokens'), style: const TextStyle(fontSize: 11))),
-                    ButtonSegment(value: _RankSortMode.keyUsage, label: Text(loc.t('sort_by_key_usage'), style: const TextStyle(fontSize: 11))),
-                  ],
-                  selected: {_rankSortMode},
-                  onSelectionChanged: (v) => setState(() {
-                    _rankSortMode = v.first;
-                    _rankingExpanded = false;
-                  }),
-                  style: ButtonStyle(
-                    visualDensity: VisualDensity.compact,
-                    padding: WidgetStateProperty.all(const EdgeInsets.symmetric(horizontal: 4)),
-                  ),
-                ),
-              ),
-              if (sortedList.isEmpty)
-                _buildEmptyRanking(loc)
-              else ...[
-                _buildRankingListView(
-                  _rankingExpanded ? sortedList : sortedList.take(_rankingPreviewCount).toList(),
-                  loc,
-                ),
-                if (hasMore)
-                  InkWell(
-                    onTap: () => setState(() => _rankingExpanded = !_rankingExpanded),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            _rankingExpanded ? loc.t('show_less') : loc.t('show_more'),
-                            style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.primary),
-                          ),
-                          Icon(
-                            _rankingExpanded ? Icons.expand_less : Icons.expand_more,
-                            size: 16,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ],
-                      ),
+    final tokenPreview = tokenRanking.take(previewCount).toList();
+    final requestPreview = requestRanking.take(previewCount).toList();
+    final apiKeyPreview = apiKeyRanking.take(previewCount).toList();
+
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(
+        AppTheme.spacingLg,
+        AppTheme.spacingLg,
+        AppTheme.spacingLg,
+        0,
+      ),
+      sliver: SliverToBoxAdapter(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    loc.t('ranking'),
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: colorScheme.onSurface,
                     ),
                   ),
+                ),
+                Text(loc.t('ranking_subtitle'), style: theme.textTheme.caption),
               ],
-            ],
-          ),
+            ),
+            const SizedBox(height: AppTheme.spacingMd),
+            _buildRankingCard(
+              loc.t('token_consumption_ranking'),
+              tokenPreview,
+              tokenRanking.length > previewCount,
+              CupertinoIcons.flame,
+              const Color(0xFFFF9500),
+              theme,
+              colorScheme,
+              loc,
+              (item) {
+                if (item is Channel) {
+                  return _buildChannelRankingTile(
+                    item,
+                    theme,
+                    colorScheme,
+                    item.stats!,
+                    'token',
+                  );
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+            const SizedBox(height: AppTheme.spacingLg),
+            _buildRankingCard(
+              loc.t('request_activity_ranking'),
+              requestPreview,
+              requestRanking.length > previewCount,
+              CupertinoIcons.arrow_up_circle,
+              const Color(0xFF007AFF),
+              theme,
+              colorScheme,
+              loc,
+              (item) {
+                if (item is Channel) {
+                  return _buildChannelRankingTile(
+                    item,
+                    theme,
+                    colorScheme,
+                    item.stats!,
+                    'request',
+                  );
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+            const SizedBox(height: AppTheme.spacingLg),
+            _buildRankingCard(
+              loc.t('key_usage_ranking'),
+              apiKeyPreview,
+              apiKeyRanking.length > previewCount,
+              CupertinoIcons.tag,
+              const Color(0xFFAF52DE),
+              theme,
+              colorScheme,
+              loc,
+              (item) => _buildApiKeyRankingTile(
+                item as StatsAPIKeyEntry,
+                theme,
+                colorScheme,
+                loc,
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  /// Returns the sorted list as a dynamic list (either Channel or StatsAPIKeyEntry)
-  List<dynamic> _getSortedRankingList() {
-    switch (_rankSortMode) {
-      case _RankSortMode.cost:
-        return _channelsWithStats.toList()
-          ..sort((a, b) => (b.stats!.inputCost + b.stats!.outputCost).compareTo(a.stats!.inputCost + a.stats!.outputCost));
-      case _RankSortMode.count:
-        return _channelsWithStats.toList()
-          ..sort((a, b) => (b.stats!.requestSuccess + b.stats!.requestFailed).compareTo(a.stats!.requestSuccess + a.stats!.requestFailed));
-      case _RankSortMode.tokens:
-        return _channelsWithStats.toList()
-          ..sort((a, b) => (b.stats!.inputToken + b.stats!.outputToken).compareTo(a.stats!.inputToken + a.stats!.outputToken));
-      case _RankSortMode.keyUsage:
-        return List<StatsAPIKeyEntry>.from(_apiKeyStats)
-          ..sort((a, b) => (b.metrics.requestSuccess + b.metrics.requestFailed).compareTo(a.metrics.requestSuccess + a.metrics.requestFailed));
-    }
-  }
-
-  Widget _buildRankingListView(List<dynamic> items, AppLocalizations loc) {
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: items.length,
-      separatorBuilder: (_, _) => const Divider(height: 1),
-      itemBuilder: (context, index) {
-        final item = items[index];
-        if (item is Channel) {
-          return _buildChannelTile(item, index + 1, loc);
-        } else {
-          return _buildAPIKeyTile(item as StatsAPIKeyEntry, index + 1, loc);
-        }
-      },
+  List<Channel> _getTokenRanking() {
+    return _channels.where((c) => c.stats != null).toList()..sort(
+      (a, b) => (b.stats!.inputToken + b.stats!.outputToken).compareTo(
+        a.stats!.inputToken + a.stats!.outputToken,
+      ),
     );
   }
 
-  Widget _buildChannelTile(Channel channel, int rank, AppLocalizations loc) {
-    final stats = channel.stats!;
+  List<Channel> _getRequestRanking() {
+    return _channels.where((c) => c.stats != null).toList()..sort(
+      (a, b) => (b.stats!.requestSuccess + b.stats!.requestFailed).compareTo(
+        a.stats!.requestSuccess + a.stats!.requestFailed,
+      ),
+    );
+  }
+
+  List<StatsAPIKeyEntry> _getApiKeyRanking() {
+    return _apiKeyStats..sort(
+      (a, b) => (b.metrics.requestSuccess + b.metrics.requestFailed).compareTo(
+        a.metrics.requestSuccess + a.metrics.requestFailed,
+      ),
+    );
+  }
+
+  Widget _buildRankingCard(
+    String title,
+    List<dynamic> items,
+    bool hasMore,
+    IconData icon,
+    Color accentColor,
+    ThemeData theme,
+    ColorScheme colorScheme,
+    AppLocalizations loc,
+    Widget Function(dynamic) itemBuilder,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.getSurfaceLow(colorScheme),
+        borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.15),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(AppTheme.spacingMd),
+            child: Row(
+              children: [
+                Icon(icon, size: 14, color: accentColor),
+                const SizedBox(width: AppTheme.spacingSm),
+                Text(
+                  title,
+                  style: theme.textTheme.footnote?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (items.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(AppTheme.spacingMd),
+              child: Center(
+                child: Text(loc.t('no_data'), style: theme.textTheme.caption),
+              ),
+            )
+          else
+            ...items.asMap().entries.map((e) {
+              final index = e.key;
+              final item = e.value;
+              return Column(
+                children: [
+                  if (index > 0)
+                    Divider(
+                      height: 1,
+                      indent: AppTheme.spacingLg,
+                      endIndent: AppTheme.spacingLg,
+                      color: colorScheme.outlineVariant.withValues(alpha: 0.2),
+                    ),
+                  itemBuilder(item),
+                ],
+              );
+            }),
+          if (hasMore && !_rankingExpanded)
+            GestureDetector(
+              onTap: () => setState(() => _rankingExpanded = true),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  vertical: AppTheme.spacingSm,
+                ),
+                decoration: BoxDecoration(
+                  color: colorScheme.primary.withValues(alpha: 0.06),
+                  borderRadius: const BorderRadius.vertical(
+                    bottom: Radius.circular(AppTheme.radiusLarge),
+                  ),
+                ),
+                child: Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        loc.t('show_more'),
+                        style: theme.textTheme.footnote?.copyWith(
+                          color: colorScheme.primary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      Icon(
+                        CupertinoIcons.chevron_down,
+                        size: 14,
+                        color: colorScheme.primary,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChannelRankingTile(
+    Channel channel,
+    ThemeData theme,
+    ColorScheme colorScheme,
+    StatsChannel stats,
+    String type,
+  ) {
+    String value;
+    Color valueColor;
+    if (type == 'token') {
+      value = _formatNum(stats.inputToken + stats.outputToken);
+      valueColor = const Color(0xFFFF9500);
+    } else {
+      value = _formatNum(stats.requestSuccess + stats.requestFailed);
+      valueColor = const Color(0xFF007AFF);
+    }
+
     final successRate = (stats.requestSuccess + stats.requestFailed) > 0
         ? stats.requestSuccess / (stats.requestSuccess + stats.requestFailed)
         : 0.0;
 
-    String valueText;
-    if (_rankSortMode == _RankSortMode.cost) {
-      valueText = '\$${(stats.inputCost + stats.outputCost).toStringAsFixed(4)}';
-    } else if (_rankSortMode == _RankSortMode.count) {
-      valueText = _formatNum(stats.requestSuccess + stats.requestFailed);
-    } else {
-      valueText = _formatNum(stats.inputToken + stats.outputToken);
-    }
-
-    return ListTile(
-      dense: true,
-      leading: _buildRankBadge(rank),
-      title: Text(channel.name, style: const TextStyle(fontSize: 13)),
-      subtitle: Text(
-        '${loc.t('success_rate_label')}: ${(successRate * 100).toStringAsFixed(1)}%',
-        style: const TextStyle(fontSize: 11),
-      ),
-      trailing: Text(
-        valueText,
-        style: TextStyle(
-          color: _rankSortMode == _RankSortMode.cost ? Colors.green : Colors.blue,
-          fontWeight: FontWeight.bold,
-          fontSize: 13,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAPIKeyTile(StatsAPIKeyEntry entry, int rank, AppLocalizations loc) {
-    final m = entry.metrics;
-    final successRate = (m.requestSuccess + m.requestFailed) > 0
-        ? m.requestSuccess / (m.requestSuccess + m.requestFailed)
-        : 0.0;
-
-    return ListTile(
-      dense: true,
-      leading: _buildRankBadge(rank),
-      title: Text('Key #${entry.apiKeyId}', style: const TextStyle(fontSize: 13)),
-      subtitle: Text(
-        '${loc.t('success_rate_label')}: ${(successRate * 100).toStringAsFixed(1)}% | ${loc.t('cost')}: \$${m.totalCost.toStringAsFixed(4)}',
-        style: const TextStyle(fontSize: 11),
-      ),
-      trailing: Text(
-        _formatNum(m.requestSuccess + m.requestFailed),
-        style: const TextStyle(
-          color: Colors.blue,
-          fontWeight: FontWeight.bold,
-          fontSize: 13,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmptyRanking(AppLocalizations loc) {
     return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Center(
-        child: Text(loc.t('no_data'), style: TextStyle(color: Colors.grey.shade500)),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTheme.spacingMd,
+        vertical: AppTheme.spacingSm,
+      ),
+      child: Row(
+        children: [
+          _buildRankBadge(channel.id % 100),
+          const SizedBox(width: AppTheme.spacingSm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  channel.name,
+                  style: theme.textTheme.body?.copyWith(
+                    fontWeight: FontWeight.w500,
+                    fontSize: 15,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  '${(successRate * 100).toStringAsFixed(0)}% success',
+                  style: theme.textTheme.caption,
+                ),
+              ],
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: valueColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildApiKeyRankingTile(
+    StatsAPIKeyEntry entry,
+    ThemeData theme,
+    ColorScheme colorScheme,
+    AppLocalizations loc,
+  ) {
+    final displayName = _getApiKeyDisplayName(entry.apiKeyId);
+    final metrics = entry.metrics;
+    final totalRequests = metrics.requestSuccess + metrics.requestFailed;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTheme.spacingMd,
+        vertical: AppTheme.spacingSm,
+      ),
+      child: Row(
+        children: [
+          _buildRankBadge(entry.apiKeyId % 100),
+          const SizedBox(width: AppTheme.spacingSm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  displayName,
+                  style: theme.textTheme.body?.copyWith(
+                    fontWeight: FontWeight.w500,
+                    fontSize: 15,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  _formatCurrency(entry.metrics.totalCost),
+                  style: theme.textTheme.caption,
+                ),
+              ],
+            ),
+          ),
+          Text(
+            _formatNum(totalRequests),
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFFAF52DE),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildRankBadge(int rank) {
-    Color color;
+    final colorScheme = Theme.of(context).colorScheme;
+
     if (rank == 1) {
-      color = Colors.amber;
-    } else if (rank == 2) {
-      color = Colors.grey.shade400;
-    } else if (rank == 3) {
-      color = Colors.brown.shade300;
-    } else {
-      return CircleAvatar(
-        radius: 16,
-        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-        child: Text('$rank', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+      return Container(
+        width: 22,
+        height: 22,
+        decoration: BoxDecoration(
+          color: const Color(0xFFFF9500).withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+        ),
+        child: const Icon(
+          CupertinoIcons.star_fill,
+          size: 12,
+          color: Color(0xFFFF9500),
+        ),
       );
     }
-    return CircleAvatar(
-      radius: 16,
-      backgroundColor: color.withValues(alpha: 0.15),
-      child: Icon(Icons.emoji_events, size: 18, color: color),
-    );
-  }
-
-  Iterable<Channel> get _channelsWithStats sync* {
-    for (final c in _channels) {
-      if (c.stats != null) yield c;
+    if (rank == 2) {
+      return Container(
+        width: 22,
+        height: 22,
+        decoration: BoxDecoration(
+          color: const Color(0xFF8E8E93).withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+        ),
+        child: const Icon(
+          CupertinoIcons.star_fill,
+          size: 12,
+          color: Color(0xFF8E8E93),
+        ),
+      );
     }
-  }
+    if (rank == 3) {
+      return Container(
+        width: 22,
+        height: 22,
+        decoration: BoxDecoration(
+          color: const Color(0xFFAF52DE).withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+        ),
+        child: const Icon(
+          CupertinoIcons.star_fill,
+          size: 12,
+          color: Color(0xFFAF52DE),
+        ),
+      );
+    }
 
-  // ==================== Helpers ====================
-
-  String _formatNum(int n) {
-    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
-    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
-    return n.toString();
+    return Container(
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        color: AppTheme.getSurfaceHigh(colorScheme),
+        borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+      ),
+    );
   }
 }

@@ -1,7 +1,12 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:octopusmanage/l10n/app_localizations.dart';
 import 'package:octopusmanage/models/setting.dart';
 import 'package:octopusmanage/providers/app_provider.dart';
+import 'package:octopusmanage/theme/app_theme.dart';
+import 'package:octopusmanage/widgets/app_card.dart';
+import 'package:octopusmanage/widgets/app_empty_state.dart';
+import 'package:octopusmanage/widgets/app_list_tile.dart';
 import 'package:provider/provider.dart';
 
 class SettingPage extends StatefulWidget {
@@ -54,9 +59,18 @@ class _SettingPageState extends State<SettingPage> {
       _loadSettings();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        showCupertinoDialog(
+          context: context,
+          builder: (_) => CupertinoAlertDialog(
+            title: Text(e.toString()),
+            actions: [
+              CupertinoDialogAction(
+                child: Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
       }
     }
   }
@@ -65,15 +79,30 @@ class _SettingPageState extends State<SettingPage> {
     final controller = TextEditingController(text: setting.value);
     final result = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => CupertinoAlertDialog(
         title: Text(_settingLabel(setting.key, loc)),
-        content: TextField(controller: controller, autofocus: true),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: CupertinoTextField(
+            controller: controller,
+            autofocus: true,
+            placeholder: loc.t('enter_value'),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Theme.of(ctx).colorScheme.brightness == Brightness.light
+                  ? const Color(0xFFE5E5EA)
+                  : const Color(0xFF3A3A3C),
+              borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+            ),
+          ),
+        ),
         actions: [
-          TextButton(
+          CupertinoDialogAction(
             onPressed: () => Navigator.pop(ctx),
             child: Text(loc.t('cancel')),
           ),
-          FilledButton(
+          CupertinoDialogAction(
+            isDefaultAction: true,
             onPressed: () => Navigator.pop(ctx, controller.text),
             child: Text(loc.t('save')),
           ),
@@ -87,9 +116,18 @@ class _SettingPageState extends State<SettingPage> {
       _loadSettings();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        showCupertinoDialog(
+          context: context,
+          builder: (_) => CupertinoAlertDialog(
+            title: Text(e.toString()),
+            actions: [
+              CupertinoDialogAction(
+                child: Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
       }
     }
   }
@@ -116,117 +154,222 @@ class _SettingPageState extends State<SettingPage> {
   Widget build(BuildContext context) {
     final provider = context.watch<AppProvider>();
     final loc = provider.loc;
-    return RefreshIndicator(
-      onRefresh: _loadSettings,
-      child: CustomScrollView(
-        slivers: [
-          SliverAppBar(title: Text(loc.t('settings')), floating: true),
-          if (_loading)
-            const SliverFillRemaining(
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else ...[
-            SliverToBoxAdapter(
-              child: Card(
-                margin: const EdgeInsets.all(12),
-                child: ListTile(
-                  leading: const Icon(Icons.info_outline),
-                  title: Text(loc.t('server_version')),
-                  trailing: Text(
-                    _version,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return CupertinoPageScaffold(
+      backgroundColor: AppTheme.getSurfaceLowest(colorScheme),
+      child: SafeArea(
+        bottom: false,
+        child: CustomScrollView(
+          slivers: [
+            CupertinoSliverNavigationBar(
+              largeTitle: Text(loc.t('settings')),
+              backgroundColor: AppTheme.getSurfaceLowest(
+                colorScheme,
+              ).withValues(alpha: 0.85),
+              border: null,
             ),
-            SliverToBoxAdapter(
-              child: Card(
-                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                child: ListTile(
-                  leading: const Icon(Icons.language),
-                  title: Text(loc.t('language')),
-                  trailing: DropdownButton<AppLocale>(
-                    value: provider.locale,
-                    underline: const SizedBox(),
-                    items: [
-                      DropdownMenuItem(
-                        value: AppLocale.en,
-                        child: Text('English'),
-                      ),
-                      DropdownMenuItem(value: AppLocale.zh, child: Text('中文')),
-                    ],
-                    onChanged: (v) {
-                      if (v != null) provider.setLocale(v);
-                    },
+            if (_loading)
+              const SliverFillRemaining(
+                hasScrollBody: false,
+                child: AppLoadingState(),
+              )
+            else ...[
+              SliverToBoxAdapter(
+                child: AppCard(
+                  margin: const EdgeInsets.fromLTRB(
+                    AppTheme.spacingLg,
+                    AppTheme.spacingSm,
+                    AppTheme.spacingLg,
+                    0,
                   ),
-                ),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: Card(
-                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                child: ListTile(
-                  leading: const Icon(Icons.timer),
-                  title: Text(loc.t('wait_time_unit')),
-                  trailing: DropdownButton<WaitTimeUnit>(
-                    value: provider.waitTimeUnit,
-                    underline: const SizedBox(),
-                    items: [
-                      DropdownMenuItem(
-                        value: WaitTimeUnit.auto,
-                        child: Text(loc.t('wait_time_unit_auto')),
-                      ),
-                      DropdownMenuItem(
-                        value: WaitTimeUnit.s,
-                        child: Text(loc.t('wait_time_unit_s')),
-                      ),
-                      DropdownMenuItem(
-                        value: WaitTimeUnit.ms,
-                        child: Text(loc.t('wait_time_unit_ms')),
-                      ),
-                    ],
-                    onChanged: (v) {
-                      if (v != null) provider.setWaitTimeUnit(v);
-                    },
-                  ),
-                ),
-              ),
-            ),
-            SliverList(
-              delegate: SliverChildBuilderDelegate((context, index) {
-                final s = _settings[index];
-                final label = _settingLabel(s.key, loc);
-                final isBool = _isBooleanSetting(s.key);
-                return Card(
-                  margin: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 2,
-                  ),
-                  child: ListTile(
-                    dense: true,
-                    title: Text(label, style: const TextStyle(fontSize: 13)),
-                    subtitle: isBool
-                        ? null
-                        : Text(
-                            s.value.isEmpty ? loc.t('empty') : s.value,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[600],
-                            ),
+                  padding: const EdgeInsets.all(AppTheme.spacingLg),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: colorScheme.primary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(
+                            AppTheme.radiusMedium,
                           ),
-                    trailing: isBool
-                        ? Switch(
+                        ),
+                        child: Icon(
+                          CupertinoIcons.info_circle,
+                          color: colorScheme.primary,
+                        ),
+                      ),
+                      const SizedBox(width: AppTheme.spacingMd),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              loc.t('server_version'),
+                              style: theme.textTheme.footnote?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            Text(
+                              _version,
+                              style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w600,
+                                color: colorScheme.onSurface,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppTheme.spacingLg,
+                    AppTheme.spacingLg,
+                    AppTheme.spacingLg,
+                    AppTheme.spacingSm,
+                  ),
+                  child: Text(
+                    loc.t('preferences'),
+                    style: theme.textTheme.caption?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: AppSettingItem(
+                  title: loc.t('language'),
+                  valueWidget: CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          provider.locale == AppLocale.en ? 'English' : '中文',
+                          style: TextStyle(color: colorScheme.onSurfaceVariant),
+                        ),
+                        Icon(
+                          CupertinoIcons.chevron_down,
+                          size: 14,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ],
+                    ),
+                    onPressed: () {
+                      final newLocale = provider.locale == AppLocale.en
+                          ? AppLocale.zh
+                          : AppLocale.en;
+                      provider.setLocale(newLocale);
+                    },
+                  ),
+                  margin: const EdgeInsets.fromLTRB(
+                    AppTheme.spacingLg,
+                    AppTheme.spacingSm,
+                    AppTheme.spacingLg,
+                    0,
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: AppSettingItem(
+                  title: loc.t('wait_time_unit'),
+                  valueWidget: CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          provider.waitTimeUnit == WaitTimeUnit.auto
+                              ? loc.t('wait_time_unit_auto')
+                              : provider.waitTimeUnit == WaitTimeUnit.s
+                              ? loc.t('wait_time_unit_s')
+                              : loc.t('wait_time_unit_ms'),
+                          style: TextStyle(color: colorScheme.onSurfaceVariant),
+                        ),
+                        Icon(
+                          CupertinoIcons.chevron_down,
+                          size: 14,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ],
+                    ),
+                    onPressed: () {
+                      final units = WaitTimeUnit.values;
+                      final idx = units.indexOf(provider.waitTimeUnit);
+                      final next = units[(idx + 1) % units.length];
+                      provider.setWaitTimeUnit(next);
+                    },
+                  ),
+                  margin: const EdgeInsets.fromLTRB(
+                    AppTheme.spacingLg,
+                    AppTheme.spacingSm,
+                    AppTheme.spacingLg,
+                    0,
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppTheme.spacingLg,
+                    AppTheme.spacingLg,
+                    AppTheme.spacingLg,
+                    AppTheme.spacingSm,
+                  ),
+                  child: Text(
+                    loc.t('server_settings'),
+                    style: theme.textTheme.caption?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+              SliverList(
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  final s = _settings[index];
+                  final label = _settingLabel(s.key, loc);
+                  final isBool = _isBooleanSetting(s.key);
+                  final EdgeInsets margin = index == 0
+                      ? const EdgeInsets.fromLTRB(
+                          AppTheme.spacingLg,
+                          AppTheme.spacingSm,
+                          AppTheme.spacingLg,
+                          0,
+                        )
+                      : const EdgeInsets.fromLTRB(
+                          AppTheme.spacingLg,
+                          0,
+                          AppTheme.spacingLg,
+                          0,
+                        );
+                  return AppSettingItem(
+                    title: label,
+                    value: isBool
+                        ? null
+                        : (s.value.isEmpty ? loc.t('empty') : s.value),
+                    valueWidget: isBool
+                        ? CupertinoSwitch(
                             value: s.value == 'true',
                             onChanged: (_) => _toggleBoolSetting(s),
                           )
-                        : const Icon(Icons.chevron_right, size: 18),
+                        : null,
+                    showArrow: !isBool,
+                    margin: margin,
                     onTap: isBool ? null : () => _editSetting(s, loc),
-                  ),
-                );
-              }, childCount: _settings.length),
-            ),
+                  );
+                }, childCount: _settings.length),
+              ),
+              const SliverPadding(padding: EdgeInsets.only(bottom: 96)),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

@@ -1,7 +1,14 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:octopusmanage/l10n/app_localizations.dart';
 import 'package:octopusmanage/models/api_key.dart';
 import 'package:octopusmanage/providers/app_provider.dart';
+import 'package:octopusmanage/theme/app_theme.dart';
+
+import 'package:octopusmanage/widgets/app_chips.dart';
+import 'package:octopusmanage/widgets/app_dialogs.dart';
+import 'package:octopusmanage/widgets/app_empty_state.dart';
+import 'package:octopusmanage/widgets/app_list_tile.dart';
 import 'package:provider/provider.dart';
 
 class ApiKeyPage extends StatefulWidget {
@@ -28,9 +35,18 @@ class _ApiKeyPageState extends State<ApiKeyPage> {
       _keys = await api.getApiKeys();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        showCupertinoDialog(
+          context: context,
+          builder: (_) => CupertinoAlertDialog(
+            title: Text(e.toString()),
+            actions: [
+              CupertinoDialogAction(
+                child: Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -53,44 +69,50 @@ class _ApiKeyPageState extends State<ApiKeyPage> {
       _loadKeys();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        showCupertinoDialog(
+          context: context,
+          builder: (_) => CupertinoAlertDialog(
+            title: Text(e.toString()),
+            actions: [
+              CupertinoDialogAction(
+                child: Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
       }
     }
   }
 
   Future<void> _deleteKey(APIKey key, AppLocalizations loc) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await AppConfirmDialog.show(
       context: context,
-      builder: (_) => AlertDialog(
-        title: Text(loc.t('delete_api_key')),
-        content: Text(loc.t('delete_confirm', {'name': key.name})),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(loc.t('cancel')),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(
-              loc.t('delete'),
-              style: const TextStyle(color: Colors.red),
-            ),
-          ),
-        ],
-      ),
+      title: loc.t('delete_api_key'),
+      content: loc.t('delete_confirm', {'name': key.name}),
+      confirmText: loc.t('delete'),
+      cancelText: loc.t('cancel'),
+      isDanger: true,
     );
-    if (confirmed != true) return;
+    if (!confirmed) return;
     try {
       final api = context.read<AppProvider>().api;
       await api.deleteApiKey(key.id);
       _loadKeys();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        showCupertinoDialog(
+          context: context,
+          builder: (_) => CupertinoAlertDialog(
+            title: Text(e.toString()),
+            actions: [
+              CupertinoDialogAction(
+                child: Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
       }
     }
   }
@@ -113,62 +135,88 @@ class _ApiKeyPageState extends State<ApiKeyPage> {
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
+        builder: (ctx, setDialogState) => CupertinoAlertDialog(
           title: Text(isEdit ? loc.t('edit_api_key') : loc.t('create_api_key')),
-          content: SingleChildScrollView(
-            child: SizedBox(
-              width: 400,
+          content: Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Material(
+              color: Colors.transparent,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  TextField(
+                  CupertinoTextField(
                     controller: nameCtl,
-                    decoration: InputDecoration(labelText: loc.t('name')),
-                    autofocus: !isEdit,
+                    placeholder: loc.t('name'),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: CupertinoColors.systemGrey5.resolveFrom(ctx),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                    ),
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
+                  const SizedBox(height: AppTheme.spacingMd),
+                  CupertinoTextField(
                     controller: maxCostCtl,
-                    decoration: InputDecoration(
-                      labelText: loc.t('max_cost'),
-                      prefixText: '\$',
+                    placeholder: loc.t('max_cost'),
+                    prefix: Padding(
+                      padding: const EdgeInsets.only(left: 12),
+                      child: Text(
+                        '\$',
+                        style: TextStyle(
+                          color: CupertinoColors.systemGrey.resolveFrom(ctx),
+                        ),
+                      ),
                     ),
+                    padding: const EdgeInsets.all(12),
                     keyboardType: TextInputType.number,
+                    decoration: BoxDecoration(
+                      color: CupertinoColors.systemGrey5.resolveFrom(ctx),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                    ),
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
+                  const SizedBox(height: AppTheme.spacingMd),
+                  CupertinoTextField(
                     controller: expireAtCtl,
-                    decoration: InputDecoration(
-                      labelText: loc.t('expire_at'),
-                      hintText: loc.t('expire_at_hint'),
-                    ),
+                    placeholder: loc.t('expire_at'),
+                    padding: const EdgeInsets.all(12),
                     keyboardType: TextInputType.number,
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: supportedModelsCtl,
-                    decoration: InputDecoration(
-                      labelText: loc.t('supported_models'),
-                      hintText: loc.t('supported_models_hint'),
+                    decoration: BoxDecoration(
+                      color: CupertinoColors.systemGrey5.resolveFrom(ctx),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
                     ),
-                    maxLines: 2,
                   ),
-                  const SizedBox(height: 12),
-                  SwitchListTile(
-                    title: Text(loc.t('enabled')),
-                    value: enabled,
-                    onChanged: (v) => setDialogState(() => enabled = v),
+                  const SizedBox(height: AppTheme.spacingMd),
+                  CupertinoTextField(
+                    controller: supportedModelsCtl,
+                    placeholder: loc.t('supported_models'),
+                    padding: const EdgeInsets.all(12),
+                    maxLines: 2,
+                    decoration: BoxDecoration(
+                      color: CupertinoColors.systemGrey5.resolveFrom(ctx),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                    ),
+                  ),
+                  const SizedBox(height: AppTheme.spacingMd),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(loc.t('enabled')),
+                      CupertinoSwitch(
+                        value: enabled,
+                        onChanged: (v) => setDialogState(() => enabled = v),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
           ),
           actions: [
-            TextButton(
+            CupertinoDialogAction(
               onPressed: () => Navigator.pop(ctx, false),
               child: Text(loc.t('cancel')),
             ),
-            FilledButton(
+            CupertinoDialogAction(
+              isDefaultAction: true,
               onPressed: () => Navigator.pop(ctx, true),
               child: Text(loc.t('save')),
             ),
@@ -199,30 +247,30 @@ class _ApiKeyPageState extends State<ApiKeyPage> {
       } else {
         final newKey = await api.createApiKey(key);
         if (mounted && newKey.apiKey.isNotEmpty) {
-          showDialog(
+          await AppTextDialog.show(
             context: context,
-            builder: (_) => AlertDialog(
-              title: Text(loc.t('api_key_created')),
-              content: SelectableText(
-                newKey.apiKey,
-                style: const TextStyle(fontFamily: 'monospace'),
-              ),
-              actions: [
-                FilledButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text(loc.t('ok')),
-                ),
-              ],
-            ),
+            title: loc.t('api_key_created'),
+            content: newKey.apiKey,
+            buttonText: loc.t('ok'),
+            selectable: true,
           );
         }
       }
       _loadKeys();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        showCupertinoDialog(
+          context: context,
+          builder: (_) => CupertinoAlertDialog(
+            title: Text(e.toString()),
+            actions: [
+              CupertinoDialogAction(
+                child: Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
       }
     }
   }
@@ -230,70 +278,165 @@ class _ApiKeyPageState extends State<ApiKeyPage> {
   @override
   Widget build(BuildContext context) {
     final loc = context.watch<AppProvider>().loc;
-    return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showApiKeyDialog(),
-        child: const Icon(Icons.add),
-      ),
-      body: RefreshIndicator(
-        onRefresh: _loadKeys,
-        child: CustomScrollView(
-          slivers: [
-            SliverAppBar(title: Text(loc.t('api_keys')), floating: true),
-            if (_loading)
-              const SliverFillRemaining(
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else if (_keys.isEmpty)
-              SliverFillRemaining(
-                child: Center(child: Text(loc.t('no_api_keys'))),
-              )
-            else
-              SliverList(
-                delegate: SliverChildBuilderDelegate((context, index) {
-                  final key = _keys[index];
-                  return Card(
-                    margin: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
-                    ),
-                    child: ListTile(
-                      leading: Switch(
-                        value: key.enabled,
-                        onChanged: (_) => _toggleEnabled(key),
-                      ),
-                      title: Text(
-                        key.name,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      subtitle: Text(
-                        key.apiKey.length > 16
-                            ? '${key.apiKey.substring(0, 16)}...'
-                            : key.apiKey,
-                        style: const TextStyle(
-                          fontFamily: 'monospace',
-                          fontSize: 12,
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return CupertinoPageScaffold(
+      backgroundColor: AppTheme.getSurfaceLowest(colorScheme),
+      child: SafeArea(
+        bottom: false,
+        child: Stack(
+          children: [
+            CustomScrollView(
+              slivers: [
+                CupertinoSliverNavigationBar(
+                  largeTitle: Text(loc.t('api_keys')),
+                  backgroundColor: AppTheme.getSurfaceLowest(
+                    colorScheme,
+                  ).withValues(alpha: 0.85),
+                  border: null,
+                ),
+                if (_loading)
+                  const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: AppLoadingState(),
+                  )
+                else if (_keys.isEmpty)
+                  SliverFillRemaining(
+                    child: AppEmptyState(
+                      icon: CupertinoIcons.tag,
+                      title: loc.t('no_api_keys'),
+                      subtitle: loc.t('create_first_api_key'),
+                      action: CupertinoButton.filled(
+                        onPressed: () => _showApiKeyDialog(),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(CupertinoIcons.add, size: 18),
+                            const SizedBox(width: 4),
+                            Text(loc.t('create_api_key')),
+                          ],
                         ),
                       ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.edit_outlined, size: 20),
-                            onPressed: () => _showApiKeyDialog(existing: key),
-                          ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.delete_outline,
-                              color: Colors.red,
-                            ),
-                            onPressed: () => _deleteKey(key, loc),
-                          ),
-                        ],
-                      ),
                     ),
-                  );
-                }, childCount: _keys.length),
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.only(bottom: 96),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate((context, index) {
+                        final key = _keys[index];
+                        return AppListTile(
+                          margin: const EdgeInsets.fromLTRB(
+                            AppTheme.spacingLg,
+                            AppTheme.spacingSm,
+                            AppTheme.spacingLg,
+                            0,
+                          ),
+                          leading: CupertinoSwitch(
+                            value: key.enabled,
+                            onChanged: (_) => _toggleEnabled(key),
+                          ),
+                          title: Text(
+                            key.name,
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w500,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                key.apiKey.length > 16
+                                    ? '${key.apiKey.substring(0, 16)}...'
+                                    : key.apiKey,
+                                style: const TextStyle(
+                                  fontFamily: 'monospace',
+                                  fontSize: 13,
+                                ),
+                              ),
+                              if (key.supportedModels.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                    top: AppTheme.spacingXs,
+                                  ),
+                                  child: Wrap(
+                                    spacing: AppTheme.spacingSm,
+                                    children: key.supportedModels
+                                        .split(',')
+                                        .take(3)
+                                        .map(
+                                          (m) => AppInfoChip(
+                                            icon: CupertinoIcons.cube_box,
+                                            label: m.trim(),
+                                          ),
+                                        )
+                                        .toList(),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              GestureDetector(
+                                onTap: () => _showApiKeyDialog(existing: key),
+                                child: Icon(
+                                  CupertinoIcons.pencil,
+                                  size: 20,
+                                  color: colorScheme.primary,
+                                ),
+                              ),
+                              const SizedBox(width: AppTheme.spacingMd),
+                              GestureDetector(
+                                onTap: () => _deleteKey(key, loc),
+                                child: Icon(
+                                  CupertinoIcons.delete,
+                                  size: 20,
+                                  color: colorScheme.error,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }, childCount: _keys.length),
+                    ),
+                  ),
+              ],
+            ),
+            if (!_loading && _keys.isNotEmpty)
+              Positioned(
+                right: AppTheme.spacingLg,
+                bottom: 24,
+                child: CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  borderRadius: BorderRadius.circular(28),
+                  color: colorScheme.primary,
+                  onPressed: () => _showApiKeyDialog(),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(width: 16),
+                      const Icon(
+                        CupertinoIcons.add,
+                        size: 22,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        loc.t('create_api_key'),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                    ],
+                  ),
+                ),
               ),
           ],
         ),

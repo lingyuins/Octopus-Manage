@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:octopusmanage/pages/dashboard_page.dart';
 import 'package:octopusmanage/pages/channel_page.dart';
@@ -16,8 +17,6 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  int _currentIndex = 0;
-
   static const _pages = <Widget>[
     DashboardPage(),
     ChannelPage(),
@@ -30,39 +29,49 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final loc = context.watch<AppProvider>().loc;
-    return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: _pages),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (i) => setState(() => _currentIndex = i),
-        destinations: [
-          NavigationDestination(
-            icon: const Icon(Icons.dashboard),
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: const Color(0xFF007AFF),
+      brightness: Brightness.light,
+    );
+
+    return CupertinoTabScaffold(
+      tabBar: CupertinoTabBar(
+        backgroundColor: colorScheme.brightness == Brightness.light
+            ? const Color(0xFFF9F9F9).withValues(alpha: 0.94)
+            : const Color(0xFF1C1C1E).withValues(alpha: 0.94),
+        activeColor: colorScheme.primary,
+        inactiveColor: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+        height: 56,
+        items: [
+          BottomNavigationBarItem(
+            icon: Icon(CupertinoIcons.chart_bar),
             label: loc.t('home'),
           ),
-          NavigationDestination(
-            icon: const Icon(Icons.alt_route),
+          BottomNavigationBarItem(
+            icon: Icon(CupertinoIcons.arrow_3_trianglepath),
             label: loc.t('channels'),
           ),
-          NavigationDestination(
-            icon: const Icon(Icons.account_tree),
+          BottomNavigationBarItem(
+            icon: Icon(CupertinoIcons.folder),
             label: loc.t('groups'),
           ),
-          NavigationDestination(
-            icon: const Icon(Icons.vpn_key),
+          BottomNavigationBarItem(
+            icon: Icon(CupertinoIcons.tag),
             label: loc.t('api_keys'),
           ),
-          NavigationDestination(
-            icon: const Icon(Icons.receipt_long),
+          BottomNavigationBarItem(
+            icon: Icon(CupertinoIcons.doc_text),
             label: loc.t('logs'),
           ),
-          NavigationDestination(
-            icon: const Icon(Icons.settings),
+          BottomNavigationBarItem(
+            icon: Icon(CupertinoIcons.settings),
             label: loc.t('settings'),
           ),
         ],
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       ),
+      tabBuilder: (context, index) {
+        return CupertinoTabView(builder: (context) => _pages[index]);
+      },
     );
   }
 }

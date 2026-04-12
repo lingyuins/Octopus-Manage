@@ -1,7 +1,13 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:octopusmanage/l10n/app_localizations.dart';
 import 'package:octopusmanage/models/channel.dart';
 import 'package:octopusmanage/providers/app_provider.dart';
+import 'package:octopusmanage/theme/app_theme.dart';
+import 'package:octopusmanage/widgets/app_chips.dart';
+import 'package:octopusmanage/widgets/app_dialogs.dart';
+import 'package:octopusmanage/widgets/app_empty_state.dart';
+import 'package:octopusmanage/widgets/app_list_tile.dart';
 import 'package:provider/provider.dart';
 
 class ChannelPage extends StatefulWidget {
@@ -28,9 +34,18 @@ class _ChannelPageState extends State<ChannelPage> {
       _channels = await api.getChannels();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        showCupertinoDialog(
+          context: context,
+          builder: (_) => CupertinoAlertDialog(
+            title: Text(e.toString()),
+            actions: [
+              CupertinoDialogAction(
+                child: Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -44,44 +59,50 @@ class _ChannelPageState extends State<ChannelPage> {
       _loadChannels();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        showCupertinoDialog(
+          context: context,
+          builder: (_) => CupertinoAlertDialog(
+            title: Text(e.toString()),
+            actions: [
+              CupertinoDialogAction(
+                child: Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
       }
     }
   }
 
   Future<void> _deleteChannel(Channel ch, AppLocalizations loc) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await AppConfirmDialog.show(
       context: context,
-      builder: (_) => AlertDialog(
-        title: Text(loc.t('delete_channel')),
-        content: Text(loc.t('delete_confirm', {'name': ch.name})),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(loc.t('cancel')),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(
-              loc.t('delete'),
-              style: const TextStyle(color: Colors.red),
-            ),
-          ),
-        ],
-      ),
+      title: loc.t('delete_channel'),
+      content: loc.t('delete_confirm', {'name': ch.name}),
+      confirmText: loc.t('delete'),
+      cancelText: loc.t('cancel'),
+      isDanger: true,
     );
-    if (confirmed != true) return;
+    if (!confirmed) return;
     try {
       final api = context.read<AppProvider>().api;
       await api.deleteChannel(ch.id);
       _loadChannels();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        showCupertinoDialog(
+          context: context,
+          builder: (_) => CupertinoAlertDialog(
+            title: Text(e.toString()),
+            actions: [
+              CupertinoDialogAction(
+                child: Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
       }
     }
   }
@@ -112,106 +133,106 @@ class _ChannelPageState extends State<ChannelPage> {
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
+        builder: (ctx, setDialogState) => CupertinoAlertDialog(
           title: Text(isEdit ? loc.t('edit_channel') : loc.t('create_channel')),
-          content: SingleChildScrollView(
-            child: SizedBox(
-              width: 400,
+          content: Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Material(
+              color: Colors.transparent,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  TextField(
+                  CupertinoTextField(
                     controller: nameCtl,
-                    decoration: InputDecoration(
-                      labelText: loc.t('channel_name'),
+                    placeholder: loc.t('channel_name'),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: CupertinoColors.systemGrey5.resolveFrom(ctx),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<int>(
-                    initialValue: selectedType,
-                    decoration: InputDecoration(
-                      labelText: loc.t('channel_type'),
+                  const SizedBox(height: AppTheme.spacingMd),
+                  CupertinoTextField(
+                    controller: urlCtl,
+                    placeholder: loc.t('base_url'),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: CupertinoColors.systemGrey5.resolveFrom(ctx),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
                     ),
-                    items: [
-                      DropdownMenuItem(
-                        value: 1,
-                        child: Text(loc.t('type_openai_chat')),
-                      ),
-                      DropdownMenuItem(
-                        value: 2,
-                        child: Text(loc.t('type_openai_response')),
-                      ),
-                      DropdownMenuItem(
-                        value: 3,
-                        child: Text(loc.t('type_openai_embedding')),
-                      ),
-                      DropdownMenuItem(
-                        value: 4,
-                        child: Text(loc.t('type_anthropic')),
-                      ),
-                      DropdownMenuItem(
-                        value: 5,
-                        child: Text(loc.t('type_gemini')),
-                      ),
-                      DropdownMenuItem(
-                        value: 6,
-                        child: Text(loc.t('type_volcengine')),
+                  ),
+                  const SizedBox(height: AppTheme.spacingMd),
+                  CupertinoTextField(
+                    controller: keyCtl,
+                    placeholder: loc.t('api_key'),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: CupertinoColors.systemGrey5.resolveFrom(ctx),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                    ),
+                  ),
+                  const SizedBox(height: AppTheme.spacingMd),
+                  CupertinoTextField(
+                    controller: modelCtl,
+                    placeholder: loc.t('model'),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: CupertinoColors.systemGrey5.resolveFrom(ctx),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                    ),
+                  ),
+                  const SizedBox(height: AppTheme.spacingMd),
+                  CupertinoTextField(
+                    controller: customModelCtl,
+                    placeholder: loc.t('custom_model'),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: CupertinoColors.systemGrey5.resolveFrom(ctx),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                    ),
+                  ),
+                  const SizedBox(height: AppTheme.spacingMd),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(loc.t('enabled')),
+                      CupertinoSwitch(
+                        value: enabled,
+                        onChanged: (v) => setDialogState(() => enabled = v),
                       ),
                     ],
-                    onChanged: (v) =>
-                        setDialogState(() => selectedType = v ?? 1),
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: urlCtl,
-                    decoration: InputDecoration(
-                      labelText: loc.t('base_url'),
-                      hintText: 'https://api.openai.com',
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(loc.t('proxy')),
+                      CupertinoSwitch(
+                        value: proxy,
+                        onChanged: (v) => setDialogState(() => proxy = v),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: keyCtl,
-                    decoration: InputDecoration(labelText: loc.t('api_key')),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: modelCtl,
-                    decoration: InputDecoration(labelText: loc.t('model')),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: customModelCtl,
-                    decoration: InputDecoration(
-                      labelText: loc.t('custom_model'),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SwitchListTile(
-                    title: Text(loc.t('enabled')),
-                    value: enabled,
-                    onChanged: (v) => setDialogState(() => enabled = v),
-                  ),
-                  SwitchListTile(
-                    title: Text(loc.t('proxy')),
-                    value: proxy,
-                    onChanged: (v) => setDialogState(() => proxy = v),
-                  ),
-                  SwitchListTile(
-                    title: Text(loc.t('auto_sync')),
-                    value: autoSync,
-                    onChanged: (v) => setDialogState(() => autoSync = v),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(loc.t('auto_sync')),
+                      CupertinoSwitch(
+                        value: autoSync,
+                        onChanged: (v) => setDialogState(() => autoSync = v),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
           ),
           actions: [
-            TextButton(
+            CupertinoDialogAction(
               onPressed: () => Navigator.pop(ctx, false),
               child: Text(loc.t('cancel')),
             ),
-            FilledButton(
+            CupertinoDialogAction(
+              isDefaultAction: true,
               onPressed: () => Navigator.pop(ctx, true),
               child: Text(loc.t('save')),
             ),
@@ -260,9 +281,18 @@ class _ChannelPageState extends State<ChannelPage> {
       _loadChannels();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        showCupertinoDialog(
+          context: context,
+          builder: (_) => CupertinoAlertDialog(
+            title: Text(e.toString()),
+            actions: [
+              CupertinoDialogAction(
+                child: Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
       }
     }
   }
@@ -286,79 +316,194 @@ class _ChannelPageState extends State<ChannelPage> {
     }
   }
 
+  Color _channelTypeColor(int type) {
+    switch (type) {
+      case 1:
+        return const Color(0xFF007AFF);
+      case 2:
+        return const Color(0xFF5AC8FA);
+      case 3:
+        return const Color(0xFF34C759);
+      case 4:
+        return const Color(0xFF5856D6);
+      case 5:
+        return const Color(0xFFFF9500);
+      case 6:
+        return const Color(0xFFFF3B30);
+      default:
+        return const Color(0xFF8E8E93);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final loc = context.watch<AppProvider>().loc;
-    return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showChannelDialog(),
-        child: const Icon(Icons.add),
-      ),
-      body: RefreshIndicator(
-        onRefresh: _loadChannels,
-        child: CustomScrollView(
-          slivers: [
-            SliverAppBar(title: Text(loc.t('channels')), floating: true),
-            if (_loading)
-              const SliverFillRemaining(
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else if (_channels.isEmpty)
-              SliverFillRemaining(
-                child: Center(child: Text(loc.t('no_channels'))),
-              )
-            else
-              SliverList(
-                delegate: SliverChildBuilderDelegate((context, index) {
-                  final ch = _channels[index];
-                  return Card(
-                    margin: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return CupertinoPageScaffold(
+      backgroundColor: AppTheme.getSurfaceLowest(colorScheme),
+      child: SafeArea(
+        bottom: false,
+        child: Stack(
+          children: [
+            CustomScrollView(
+              slivers: [
+                CupertinoSliverNavigationBar(
+                  largeTitle: Text(loc.t('channels')),
+                  backgroundColor: AppTheme.getSurfaceLowest(
+                    colorScheme,
+                  ).withValues(alpha: 0.85),
+                  border: null,
+                ),
+                if (_loading)
+                  const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: AppLoadingState(),
+                  )
+                else if (_channels.isEmpty)
+                  SliverFillRemaining(
+                    child: AppEmptyState(
+                      icon: CupertinoIcons.arrow_3_trianglepath,
+                      title: loc.t('no_channels'),
+                      subtitle: loc.t('create_first_channel'),
+                      action: CupertinoButton.filled(
+                        onPressed: () => _showChannelDialog(),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(CupertinoIcons.add, size: 18),
+                            const SizedBox(width: 4),
+                            Text(loc.t('create_channel')),
+                          ],
+                        ),
+                      ),
                     ),
-                    child: ListTile(
-                      leading: Switch(
-                        value: ch.enabled,
-                        onChanged: (_) => _toggleEnabled(ch),
-                      ),
-                      title: Text(
-                        ch.name,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(_channelTypeName(ch.type, loc)),
-                          if (ch.keys.isNotEmpty)
-                            Text(
-                              '${loc.t("keys")}: ${ch.keys.where((k) => k.enabled).length}/${ch.keys.length}',
-                            ),
-                          if (ch.stats != null)
-                            Text(
-                              '${loc.t("success")}: ${ch.stats!.requestSuccess}  ${loc.t("failed")}: ${ch.stats!.requestFailed}',
-                            ),
-                        ],
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.edit_outlined, size: 20),
-                            onPressed: () => _showChannelDialog(existing: ch),
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.only(bottom: 96),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate((context, index) {
+                        final ch = _channels[index];
+                        return AppListTile(
+                          margin: const EdgeInsets.fromLTRB(
+                            AppTheme.spacingLg,
+                            AppTheme.spacingSm,
+                            AppTheme.spacingLg,
+                            0,
                           ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.delete_outline,
-                              color: Colors.red,
-                            ),
-                            onPressed: () => _deleteChannel(ch, loc),
+                          leading: CupertinoSwitch(
+                            value: ch.enabled,
+                            onChanged: (_) => _toggleEnabled(ch),
                           ),
-                        ],
-                      ),
-                      isThreeLine: true,
+                          title: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  ch.name,
+                                  style: TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w500,
+                                    color: colorScheme.onSurface,
+                                  ),
+                                ),
+                              ),
+                              AppTypeChip(
+                                label: _channelTypeName(ch.type, loc),
+                                color: _channelTypeColor(ch.type),
+                              ),
+                            ],
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (ch.keys.isNotEmpty)
+                                AppInfoChip(
+                                  icon: CupertinoIcons.tag,
+                                  label:
+                                      '${ch.keys.where((k) => k.enabled).length}/${ch.keys.length}',
+                                ),
+                              if (ch.stats != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                    top: AppTheme.spacingXs,
+                                  ),
+                                  child: Wrap(
+                                    spacing: AppTheme.spacingSm,
+                                    children: [
+                                      AppInfoChip(
+                                        icon: CupertinoIcons.checkmark_circle,
+                                        label: '${ch.stats!.requestSuccess}',
+                                      ),
+                                      AppInfoChip(
+                                        icon: CupertinoIcons.xmark_circle,
+                                        label: '${ch.stats!.requestFailed}',
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              GestureDetector(
+                                onTap: () => _showChannelDialog(existing: ch),
+                                child: Icon(
+                                  CupertinoIcons.pencil,
+                                  size: 20,
+                                  color: colorScheme.primary,
+                                ),
+                              ),
+                              const SizedBox(width: AppTheme.spacingMd),
+                              GestureDetector(
+                                onTap: () => _deleteChannel(ch, loc),
+                                child: Icon(
+                                  CupertinoIcons.delete,
+                                  size: 20,
+                                  color: colorScheme.error,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }, childCount: _channels.length),
                     ),
-                  );
-                }, childCount: _channels.length),
+                  ),
+              ],
+            ),
+            if (!_loading && _channels.isNotEmpty)
+              Positioned(
+                right: AppTheme.spacingLg,
+                bottom: 24,
+                child: CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  borderRadius: BorderRadius.circular(28),
+                  color: colorScheme.primary,
+                  onPressed: () => _showChannelDialog(),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(width: 16),
+                      const Icon(
+                        CupertinoIcons.add,
+                        size: 22,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        loc.t('create_channel'),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                    ],
+                  ),
+                ),
               ),
           ],
         ),

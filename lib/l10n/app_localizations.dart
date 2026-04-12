@@ -32,6 +32,11 @@ class AppLocalizations {
 
     // Dashboard
     'dashboard': {AppLocale.en: 'Dashboard', AppLocale.zh: '仪表盘'},
+    'dashboard_subtitle': {
+      AppLocale.en:
+          'Keep track of traffic, cost, and channel activity at a glance',
+      AppLocale.zh: '快速查看流量、费用与渠道活跃情况',
+    },
     'today': {AppLocale.en: 'Today', AppLocale.zh: '今日'},
     'total': {AppLocale.en: 'Total', AppLocale.zh: '总计'},
     'requests': {AppLocale.en: 'Requests', AppLocale.zh: '请求数'},
@@ -43,19 +48,38 @@ class AppLocalizations {
     'daily_requests': {AppLocale.en: 'Daily Requests', AppLocale.zh: '每日请求'},
     'daily_cost': {AppLocale.en: 'Daily Cost', AppLocale.zh: '每日费用'},
     'daily_chart': {AppLocale.en: 'Daily Trend', AppLocale.zh: '每日趋势'},
+    'daily_chart_subtitle': {
+      AppLocale.en: 'Compare request volume and spending changes over time',
+      AppLocale.zh: '对比请求量与费用的每日变化趋势',
+    },
 
     // Ranking
     'ranking': {AppLocale.en: 'Ranking', AppLocale.zh: '排行榜'},
+    'ranking_subtitle': {
+      AppLocale.en: 'Review the most active channels and API keys by metric',
+      AppLocale.zh: '按指标查看最活跃的渠道与 API Key',
+    },
     'sort_by_cost': {AppLocale.en: 'Cost', AppLocale.zh: '费用'},
     'sort_by_count': {AppLocale.en: 'Count', AppLocale.zh: '请求数'},
     'sort_by_tokens': {AppLocale.en: 'Tokens', AppLocale.zh: 'Token数'},
     'sort_by_key_usage': {AppLocale.en: 'Key Usage', AppLocale.zh: 'Key 用量'},
-    'api_key_leaderboard': {AppLocale.en: 'API Key Leaderboard', AppLocale.zh: 'API Key 排行'},
+    'api_key_leaderboard': {
+      AppLocale.en: 'API Key Leaderboard',
+      AppLocale.zh: 'API Key 排行',
+    },
     'no_data': {AppLocale.en: 'No data', AppLocale.zh: '暂无数据'},
     'success_rate_label': {AppLocale.en: 'Success Rate', AppLocale.zh: '成功率'},
-    'channel_leaderboard': {AppLocale.en: 'Channel Leaderboard', AppLocale.zh: '渠道排行'},
+    'channel_leaderboard': {
+      AppLocale.en: 'Channel Leaderboard',
+      AppLocale.zh: '渠道排行',
+    },
     'show_more': {AppLocale.en: 'Show more', AppLocale.zh: '展开更多'},
     'show_less': {AppLocale.en: 'Show less', AppLocale.zh: '收起'},
+    'collapse': {AppLocale.en: 'Collapse', AppLocale.zh: '收起'},
+    'token_consumption_ranking': { AppLocale.en: 'Token Consumption', AppLocale.zh: 'Token 消耗排行', },
+    'request_activity_ranking': { AppLocale.en: 'Request Activity', AppLocale.zh: '请求活跃度排行', },
+    'key_usage_ranking': { AppLocale.en: 'Key Usage', AppLocale.zh: 'Key 用量排行', },
+    'input': {AppLocale.en: 'Input', AppLocale.zh: '输入'},
 
     // Wait time unit
     'wait_time_unit': {AppLocale.en: 'Wait Time Unit', AppLocale.zh: '等待时间单位'},
@@ -74,9 +98,37 @@ class AppLocalizations {
     'cancel': {AppLocale.en: 'Cancel', AppLocale.zh: '取消'},
     'delete': {AppLocale.en: 'Delete', AppLocale.zh: '删除'},
     'no_channels': {AppLocale.en: 'No channels', AppLocale.zh: '暂无渠道'},
+    'channels_subtitle': {
+      AppLocale.en: 'Manage your LLM API channels',
+      AppLocale.zh: '管理您的 LLM API 渠道',
+    },
     'no_groups': {AppLocale.en: 'No groups', AppLocale.zh: '暂无分组'},
+    'groups_subtitle': {
+      AppLocale.en: 'Organize channels into groups',
+      AppLocale.zh: '将渠道组织成分组',
+    },
     'no_api_keys': {AppLocale.en: 'No API keys', AppLocale.zh: '暂无 API Key'},
+    'api_keys_subtitle': {
+      AppLocale.en: 'Manage API keys for external access',
+      AppLocale.zh: '管理外部访问的 API Key',
+    },
     'no_logs': {AppLocale.en: 'No logs', AppLocale.zh: '暂无日志'},
+    'logs_subtitle': {
+      AppLocale.en: 'View request and response logs',
+      AppLocale.zh: '查看请求和响应日志',
+    },
+    'create_first_channel': {
+      AppLocale.en: 'Create your first channel to get started',
+      AppLocale.zh: '创建您的第一个渠道以开始',
+    },
+    'create_first_group': {
+      AppLocale.en: 'Create your first group to organize channels',
+      AppLocale.zh: '创建您的第一个分组来组织渠道',
+    },
+    'create_first_api_key': {
+      AppLocale.en: 'Create your first API key for external access',
+      AppLocale.zh: '创建您的第一个 API Key 用于外部访问',
+    },
     'create_channel': {AppLocale.en: 'Create Channel', AppLocale.zh: '创建渠道'},
     'edit_channel': {AppLocale.en: 'Edit Channel', AppLocale.zh: '编辑渠道'},
     'channel_name': {AppLocale.en: 'Channel Name', AppLocale.zh: '渠道名称'},
@@ -152,6 +204,16 @@ class AppLocalizations {
     'language': {AppLocale.en: 'Language', AppLocale.zh: '语言'},
     'empty': {AppLocale.en: '(empty)', AppLocale.zh: '(空)'},
     'save': {AppLocale.en: 'Save', AppLocale.zh: '保存'},
+    'settings_subtitle': {
+      AppLocale.en: 'Configure app and server settings',
+      AppLocale.zh: '配置应用和服务器设置',
+    },
+    'preferences': {AppLocale.en: 'Preferences', AppLocale.zh: '偏好设置'},
+    'server_settings': {AppLocale.en: 'Server Settings', AppLocale.zh: '服务器设置'},
+    'enter_value': {AppLocale.en: 'Enter value', AppLocale.zh: '输入值'},
+
+    // Overview
+    'overview': {AppLocale.en: 'Overview', AppLocale.zh: '概览'},
 
     // Channel types
     'type_openai_chat': {
@@ -175,6 +237,7 @@ class AppLocalizations {
     'mode_random': {AppLocale.en: 'Random', AppLocale.zh: '随机'},
     'mode_failover': {AppLocale.en: 'Failover', AppLocale.zh: '故障转移'},
     'mode_weighted': {AppLocale.en: 'Weighted', AppLocale.zh: '加权'},
+    'add': {AppLocale.en: 'Add', AppLocale.zh: '添加'},
 
     // Setting labels
     'setting_proxy_url': {AppLocale.en: 'Proxy URL', AppLocale.zh: '代理 URL'},

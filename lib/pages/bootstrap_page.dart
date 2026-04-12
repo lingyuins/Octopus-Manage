@@ -1,5 +1,8 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:octopusmanage/providers/app_provider.dart';
+import 'package:octopusmanage/theme/app_theme.dart';
+import 'package:octopusmanage/widgets/app_card.dart';
 import 'package:provider/provider.dart';
 
 class BootstrapPage extends StatefulWidget {
@@ -17,8 +20,6 @@ class _BootstrapPageState extends State<BootstrapPage> {
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
   bool _loading = false;
-
-  static const int _minPasswordLength = 12;
 
   @override
   void dispose() {
@@ -40,20 +41,47 @@ class _BootstrapPageState extends State<BootstrapPage> {
       );
       if (success && mounted) {
         final loc = provider.loc;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(loc.t('admin_created'))));
+        showCupertinoDialog(
+          context: context,
+          builder: (_) => CupertinoAlertDialog(
+            title: Text(loc.t('admin_created')),
+            actions: [
+              CupertinoDialogAction(
+                child: Text(loc.t('ok')),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
       } else if (!success && mounted) {
         final loc = provider.loc;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(loc.t('bootstrap_failed'))));
+        showCupertinoDialog(
+          context: context,
+          builder: (_) => CupertinoAlertDialog(
+            title: Text(loc.t('bootstrap_failed')),
+            actions: [
+              CupertinoDialogAction(
+                child: Text(loc.t('ok')),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        showCupertinoDialog(
+          context: context,
+          builder: (_) => CupertinoAlertDialog(
+            title: Text(e.toString()),
+            actions: [
+              CupertinoDialogAction(
+                child: Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -63,117 +91,207 @@ class _BootstrapPageState extends State<BootstrapPage> {
   @override
   Widget build(BuildContext context) {
     final loc = context.watch<AppProvider>().loc;
-    return Scaffold(
-      body: SafeArea(
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: const Color(0xFF007AFF),
+      brightness: Brightness.light,
+    );
+
+    return CupertinoPageScaffold(
+      backgroundColor: AppTheme.getSurfaceLowest(colorScheme),
+      child: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(AppTheme.spacingXxl),
             child: Form(
               key: _formKey,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    Icons.admin_panel_settings,
-                    size: 72,
-                    color: Theme.of(context).colorScheme.primary,
+                  Container(
+                    width: 96,
+                    height: 96,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          colorScheme.primary,
+                          colorScheme.primaryContainer,
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(
+                        AppTheme.radiusXXLarge,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: colorScheme.primary.withValues(alpha: 0.3),
+                          offset: const Offset(0, 8),
+                          blurRadius: 24,
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      CupertinoIcons.shield,
+                      size: 44,
+                      color: colorScheme.onPrimary,
+                    ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppTheme.spacingLg),
                   Text(
                     loc.t('initial_setup'),
-                    style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
+                    style: TextStyle(
+                      fontSize: 34,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.37,
+                      color: colorScheme.onSurface,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: AppTheme.spacingXs),
                   Text(
                     loc.t('create_admin_account'),
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
-                  ),
-                  const SizedBox(height: 32),
-                  TextFormField(
-                    controller: _usernameController,
-                    decoration: InputDecoration(
-                      labelText: loc.t('username'),
-                      prefixIcon: const Icon(Icons.person),
-                      border: const OutlineInputBorder(),
+                    style: TextStyle(
+                      fontSize: 17,
+                      color: colorScheme.onSurfaceVariant,
                     ),
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? loc.t('required')
-                        : null,
                   ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _passwordController,
-                    obscureText: _obscurePassword,
-                    decoration: InputDecoration(
-                      labelText: loc.t('password'),
-                      prefixIcon: const Icon(Icons.lock),
-                      border: const OutlineInputBorder(),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscurePassword
-                              ? Icons.visibility
-                              : Icons.visibility_off,
+                  const SizedBox(height: AppTheme.spacingXxl),
+                  AppCard(
+                    padding: const EdgeInsets.all(AppTheme.spacingXl),
+                    child: Column(
+                      children: [
+                        CupertinoTextField(
+                          controller: _usernameController,
+                          placeholder: loc.t('username'),
+                          prefix: Padding(
+                            padding: const EdgeInsets.only(left: 12),
+                            child: Icon(
+                              CupertinoIcons.person,
+                              size: 18,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: colorScheme.brightness == Brightness.light
+                                ? const Color(0xFFE5E5EA)
+                                : const Color(0xFF3A3A3C),
+                            borderRadius: BorderRadius.circular(
+                              AppTheme.radiusSmall,
+                            ),
+                          ),
                         ),
-                        onPressed: () => setState(
-                          () => _obscurePassword = !_obscurePassword,
-                        ),
-                      ),
-                      helperText: loc.t('password_min_length'),
-                    ),
-                    validator: (v) {
-                      if (v == null || v.isEmpty) return loc.t('required');
-                      if (v.length < _minPasswordLength) {
-                        return loc.t('password_min_length');
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _confirmPasswordController,
-                    obscureText: _obscureConfirm,
-                    decoration: InputDecoration(
-                      labelText: loc.t('confirm_password'),
-                      prefixIcon: const Icon(Icons.lock_outline),
-                      border: const OutlineInputBorder(),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscureConfirm
-                              ? Icons.visibility
-                              : Icons.visibility_off,
-                        ),
-                        onPressed: () =>
-                            setState(() => _obscureConfirm = !_obscureConfirm),
-                      ),
-                    ),
-                    validator: (v) {
-                      if (v == null || v.isEmpty) return loc.t('required');
-                      if (v != _passwordController.text) {
-                        return loc.t('password_mismatch');
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: FilledButton(
-                      onPressed: _loading ? null : _submit,
-                      child: _loading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
+                        const SizedBox(height: AppTheme.spacingMd),
+                        CupertinoTextField(
+                          controller: _passwordController,
+                          placeholder: loc.t('password'),
+                          obscureText: _obscurePassword,
+                          prefix: Padding(
+                            padding: const EdgeInsets.only(left: 12),
+                            child: Icon(
+                              CupertinoIcons.lock,
+                              size: 18,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          suffix: GestureDetector(
+                            onTap: () => setState(
+                              () => _obscurePassword = !_obscurePassword,
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 12),
+                              child: Icon(
+                                _obscurePassword
+                                    ? CupertinoIcons.eye
+                                    : CupertinoIcons.eye_slash,
+                                size: 18,
+                                color: colorScheme.onSurfaceVariant,
                               ),
-                            )
-                          : Text(loc.t('create_admin')),
+                            ),
+                          ),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: colorScheme.brightness == Brightness.light
+                                ? const Color(0xFFE5E5EA)
+                                : const Color(0xFF3A3A3C),
+                            borderRadius: BorderRadius.circular(
+                              AppTheme.radiusSmall,
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4, left: 4),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              loc.t('password_min_length'),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: AppTheme.spacingMd),
+                        CupertinoTextField(
+                          controller: _confirmPasswordController,
+                          placeholder: loc.t('confirm_password'),
+                          obscureText: _obscureConfirm,
+                          prefix: Padding(
+                            padding: const EdgeInsets.only(left: 12),
+                            child: Icon(
+                              CupertinoIcons.lock,
+                              size: 18,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          suffix: GestureDetector(
+                            onTap: () => setState(
+                              () => _obscureConfirm = !_obscureConfirm,
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 12),
+                              child: Icon(
+                                _obscureConfirm
+                                    ? CupertinoIcons.eye
+                                    : CupertinoIcons.eye_slash,
+                                size: 18,
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: colorScheme.brightness == Brightness.light
+                                ? const Color(0xFFE5E5EA)
+                                : const Color(0xFF3A3A3C),
+                            borderRadius: BorderRadius.circular(
+                              AppTheme.radiusSmall,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: AppTheme.spacingLg),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: CupertinoButton(
+                            borderRadius: BorderRadius.circular(
+                              AppTheme.radiusSmall,
+                            ),
+                            color: colorScheme.primary,
+                            onPressed: _loading ? null : _submit,
+                            child: _loading
+                                ? const CupertinoActivityIndicator(radius: 12)
+                                : Text(
+                                    loc.t('create_admin'),
+                                    style: TextStyle(
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w600,
+                                      color: colorScheme.onPrimary,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
