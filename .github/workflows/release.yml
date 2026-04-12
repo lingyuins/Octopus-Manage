@@ -36,7 +36,7 @@ jobs:
       - name: Update pubspec version
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          BUILD_NUMBER=$(echo "$VERSION" | tr -d '.')
+          BUILD_NUMBER=$(echo "$VERSION" | tr -d '.' | sed 's/^0*//')
           sed -i "s/^version:.*/version: ${VERSION}+${BUILD_NUMBER}/" pubspec.yaml
           cat pubspec.yaml | head -5
 
