@@ -20,6 +20,7 @@ class LogPage extends StatefulWidget {
 class _LogPageState extends State<LogPage> {
   final List<RelayLog> _logs = [];
   bool _loading = true;
+  String? _errorMessage;
   int _page = 1;
   bool _hasMore = true;
 
@@ -34,7 +35,10 @@ class _LogPageState extends State<LogPage> {
       _page = 1;
       _hasMore = true;
     }
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _errorMessage = null;
+    });
     try {
       final api = context.read<AppProvider>().api;
       final logs = await api.getLogs(page: _page, pageSize: 20);
@@ -48,7 +52,12 @@ class _LogPageState extends State<LogPage> {
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _errorMessage = e.toString();
+        });
+      }
     }
   }
 
@@ -121,6 +130,13 @@ class _LogPageState extends State<LogPage> {
               const SliverFillRemaining(
                 hasScrollBody: false,
                 child: AppLoadingState(),
+              )
+            else if (_errorMessage != null && _logs.isEmpty)
+              SliverFillRemaining(
+                child: AppEmptyState(
+                  icon: CupertinoIcons.exclamationmark_triangle,
+                  title: _errorMessage!,
+                ),
               )
             else if (_logs.isEmpty)
               SliverFillRemaining(
