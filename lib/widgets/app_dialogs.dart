@@ -1,6 +1,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:octopusmanage/theme/app_theme.dart';
+import 'package:octopusmanage/providers/app_provider.dart';
+import 'package:provider/provider.dart';
 
 class AppConfirmDialog extends StatelessWidget {
   final String title;
@@ -88,7 +90,7 @@ class AppConfirmDialog extends StatelessWidget {
   }
 }
 
-class AppInputDialog extends StatelessWidget {
+class AppInputDialog extends StatefulWidget {
   final String title;
   final String? hint;
   final String? initialValue;
@@ -111,57 +113,7 @@ class AppInputDialog extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final controller = TextEditingController(text: initialValue);
-    final formKey = GlobalKey<FormState>();
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return CupertinoAlertDialog(
-      title: Padding(
-        padding: const EdgeInsets.only(bottom: 4),
-        child: Text(title),
-      ),
-      content: Padding(
-        padding: const EdgeInsets.only(top: 8),
-        child: Form(
-          key: formKey,
-          child: Column(
-            children: [
-              CupertinoTextField(
-                controller: controller,
-                placeholder: hint,
-                keyboardType: keyboardType,
-                maxLines: maxLines ?? 1,
-                autofocus: true,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: colorScheme.brightness == Brightness.light
-                      ? const Color(0xFFE5E5EA)
-                      : const Color(0xFF3A3A3C),
-                  borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        CupertinoDialogAction(
-          onPressed: () => Navigator.pop(context),
-          child: Text(cancelText ?? 'Cancel'),
-        ),
-        CupertinoDialogAction(
-          isDefaultAction: true,
-          onPressed: () {
-            if (formKey.currentState?.validate() ?? true) {
-              Navigator.pop(context, controller.text);
-            }
-          },
-          child: Text(confirmText ?? 'Save'),
-        ),
-      ],
-    );
-  }
+  State<AppInputDialog> createState() => _AppInputDialogState();
 
   static Future<String?> show({
     required BuildContext context,
@@ -186,6 +138,74 @@ class AppInputDialog extends StatelessWidget {
         maxLines: maxLines,
         validator: validator,
       ),
+    );
+  }
+}
+
+class _AppInputDialogState extends State<AppInputDialog> {
+  late final TextEditingController _controller;
+  final _formKey = GlobalKey<FormState>();
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialValue);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return CupertinoAlertDialog(
+      title: Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Text(widget.title),
+      ),
+      content: Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              CupertinoTextField(
+                controller: _controller,
+                placeholder: widget.hint,
+                keyboardType: widget.keyboardType,
+                maxLines: widget.maxLines ?? 1,
+                autofocus: true,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: colorScheme.brightness == Brightness.light
+                      ? const Color(0xFFE5E5EA)
+                      : const Color(0xFF3A3A3C),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        CupertinoDialogAction(
+          onPressed: () => Navigator.pop(context),
+          child: Text(widget.cancelText ?? 'Cancel'),
+        ),
+        CupertinoDialogAction(
+          isDefaultAction: true,
+          onPressed: () {
+            if (_formKey.currentState?.validate() ?? true) {
+              Navigator.pop(context, _controller.text);
+            }
+          },
+          child: Text(widget.confirmText ?? 'Save'),
+        ),
+      ],
     );
   }
 }
@@ -217,8 +237,10 @@ class AppTextDialog extends StatelessWidget {
             ? SelectableText(
                 content,
                 style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+                // 允许长字符串（如 API Key）自动换行，防止横向溢出
+                textAlign: TextAlign.start,
               )
-            : Text(content),
+            : Text(content, softWrap: true),
       ),
       actions: [
         CupertinoDialogAction(
@@ -259,6 +281,7 @@ class AppActionSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final loc = context.read<AppProvider>().loc;
 
     return CupertinoActionSheet(
       title: title != null
@@ -305,7 +328,7 @@ class AppActionSheet extends StatelessWidget {
       cancelButton: CupertinoActionSheetAction(
         onPressed: () => Navigator.pop(context),
         child: Text(
-          'Cancel',
+          loc.t('cancel'),
           style: TextStyle(
             color: colorScheme.primary,
             fontWeight: FontWeight.w600,

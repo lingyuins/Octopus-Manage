@@ -8,6 +8,7 @@ import 'package:octopusmanage/widgets/app_card.dart';
 import 'package:octopusmanage/widgets/app_chips.dart';
 import 'package:octopusmanage/widgets/app_dialogs.dart';
 import 'package:octopusmanage/widgets/app_empty_state.dart';
+import 'package:octopusmanage/widgets/app_error_dialog.dart';
 import 'package:provider/provider.dart';
 
 class LogPage extends StatefulWidget {
@@ -32,22 +33,27 @@ class _LogPageState extends State<LogPage> {
 
   Future<void> _loadLogs({bool refresh = false}) async {
     if (refresh) {
+      // 先重置状态，再 setState，避免快速双击时状态不一致
       _page = 1;
       _hasMore = true;
     }
+    if (!mounted) return;
     setState(() {
       _loading = true;
       _errorMessage = null;
+      if (refresh) _logs.clear(); // 刷新时先清空，给用户即时反馈
     });
     try {
       final api = context.read<AppProvider>().api;
-      final logs = await api.getLogs(page: _page, pageSize: 20);
+      final currentPage = _page; // 记录当前请求的页码
+      final logs = await api.getLogs(page: currentPage, pageSize: 20);
       if (mounted) {
         setState(() {
-          if (refresh) _logs.clear();
+          // 如果期间已被另一次刷新重置，则丢弃过期结果
+          if (!refresh && _page != currentPage) return;
           _logs.addAll(logs);
           _hasMore = logs.length >= 20;
-          _page++;
+          _page = currentPage + 1;
           _loading = false;
         });
       }
@@ -72,23 +78,13 @@ class _LogPageState extends State<LogPage> {
     );
     if (!confirmed) return;
     try {
+      if (!mounted) return;
       final api = context.read<AppProvider>().api;
       await api.clearLogs();
       _loadLogs(refresh: true);
     } catch (e) {
       if (mounted) {
-        showCupertinoDialog(
-          context: context,
-          builder: (_) => CupertinoAlertDialog(
-            title: Text(e.toString()),
-            actions: [
-              CupertinoDialogAction(
-                child: Text('OK'),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ],
-          ),
-        );
+        showErrorDialog(context, e.toString());
       }
     }
   }
@@ -110,6 +106,9 @@ class _LogPageState extends State<LogPage> {
       child: SafeArea(
         bottom: false,
         child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
+          ),
           slivers: [
             CupertinoSliverNavigationBar(
               largeTitle: Text(loc.t('logs')),
@@ -126,6 +125,9 @@ class _LogPageState extends State<LogPage> {
                 ),
               ),
             ),
+            CupertinoSliverRefreshControl(
+              onRefresh: () => _loadLogs(refresh: true),
+            ),
             if (_loading && _logs.isEmpty)
               const SliverFillRemaining(
                 hasScrollBody: false,
@@ -133,9 +135,9 @@ class _LogPageState extends State<LogPage> {
               )
             else if (_errorMessage != null && _logs.isEmpty)
               SliverFillRemaining(
-                child: AppEmptyState(
-                  icon: CupertinoIcons.exclamationmark_triangle,
-                  title: _errorMessage!,
+                child: AppErrorState(
+                  message: _errorMessage!,
+                  onRetry: () => _loadLogs(refresh: true),
                 ),
               )
             else if (_logs.isEmpty)
@@ -168,20 +170,20 @@ class _LogPageState extends State<LogPage> {
                                 decoration: BoxDecoration(
                                   color: log.hasError
                                       ? colorScheme.error.withValues(alpha: 0.1)
-                                      : const Color(
-                                          0xFF34C759,
-                                        ).withValues(alpha: 0.1),
+                                      : AppTheme.colorGreen.withValues(
+                                          alpha: 0.1,
+                                        ),
                                   borderRadius: BorderRadius.circular(
                                     AppTheme.radiusSmall,
                                   ),
                                 ),
                                 child: Icon(
                                   log.hasError
-                                      ? CupertinoIcons.xmark_circle
-                                      : CupertinoIcons.checkmark_circle,
+                                      ? CupertinoIcons.xmark_circle_fill
+                                      : CupertinoIcons.checkmark_circle_fill,
                                   color: log.hasError
                                       ? colorScheme.error
-                                      : const Color(0xFF34C759),
+                                      : AppTheme.colorGreen,
                                   size: 18,
                                 ),
                               ),

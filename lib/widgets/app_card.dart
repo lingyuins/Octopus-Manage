@@ -9,6 +9,7 @@ class AppCard extends StatelessWidget {
   final Color? backgroundColor;
   final Border? border;
   final VoidCallback? onTap;
+  final bool elevated;
 
   const AppCard({
     super.key,
@@ -19,6 +20,7 @@ class AppCard extends StatelessWidget {
     this.backgroundColor,
     this.border,
     this.onTap,
+    this.elevated = false,
   });
 
   @override
@@ -35,8 +37,9 @@ class AppCard extends StatelessWidget {
         border:
             border ??
             Border.all(
-              color: colorScheme.outlineVariant.withValues(alpha: 0.2),
+              color: colorScheme.outlineVariant.withValues(alpha: 0.12),
             ),
+        boxShadow: elevated ? AppTheme.getShadowMedium(colorScheme) : null,
       ),
       child: child,
     );
@@ -72,6 +75,8 @@ class AppSectionCard extends StatelessWidget {
   final EdgeInsetsGeometry? padding;
   final EdgeInsetsGeometry? margin;
   final Color? backgroundColor;
+  final IconData? icon;
+  final Color? iconColor;
 
   const AppSectionCard({
     super.key,
@@ -82,6 +87,8 @@ class AppSectionCard extends StatelessWidget {
     this.padding,
     this.margin,
     this.backgroundColor,
+    this.icon,
+    this.iconColor,
   });
 
   @override
@@ -105,6 +112,24 @@ class AppSectionCard extends StatelessWidget {
         children: [
           Row(
             children: [
+              if (icon != null) ...[
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: (iconColor ?? colorScheme.primary).withValues(
+                      alpha: 0.12,
+                    ),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 13,
+                    color: iconColor ?? colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(width: AppTheme.spacingSm),
+              ],
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -123,7 +148,7 @@ class AppSectionCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (headerTrailing != null) headerTrailing!,
+              ?headerTrailing,
             ],
           ),
           const SizedBox(height: AppTheme.spacingMd),

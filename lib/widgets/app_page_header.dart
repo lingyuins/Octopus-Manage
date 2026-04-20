@@ -181,7 +181,7 @@ class AppHeroSection extends StatelessWidget {
                         ],
                       ),
                     ),
-                    if (actionWidget != null) actionWidget!,
+                    ?actionWidget,
                   ],
                 ),
                 const SizedBox(height: AppTheme.spacingLg),

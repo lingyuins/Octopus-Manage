@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -7,7 +10,6 @@ import 'package:octopusmanage/models/channel.dart';
 import 'package:octopusmanage/models/stats.dart';
 import 'package:octopusmanage/providers/app_provider.dart';
 import 'package:octopusmanage/theme/app_theme.dart';
-import 'package:octopusmanage/widgets/app_card.dart';
 import 'package:octopusmanage/widgets/app_empty_state.dart';
 import 'package:provider/provider.dart';
 
@@ -26,9 +28,13 @@ class _DashboardPageState extends State<DashboardPage> {
   List<Channel> _channels = [];
   bool _loading = true;
   bool _showToday = true;
-  bool _rankingExpanded = false;
+  final Set<String> _expandedRankings = {};
+  String? _error;
+  bool _requestInFlight = false;
 
   Map<int, APIKey> _apiKeysMap = {};
+  Timer? _autoRefreshTimer;
+  AppProvider? _appProvider;
 
   static const int _rankingPreviewCount = 5;
   static const int _rankingPreviewCountMobile = 3;
@@ -39,41 +45,98 @@ class _DashboardPageState extends State<DashboardPage> {
     _loadStats();
   }
 
-  Future<void> _loadStats() async {
-    setState(() => _loading = true);
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final provider = context.read<AppProvider>();
+    if (!identical(_appProvider, provider)) {
+      _appProvider?.removeListener(_handleProviderChanged);
+      _appProvider = provider;
+      provider.addListener(_handleProviderChanged);
+      _configureAutoRefresh(provider);
+    }
+  }
+
+  @override
+  void dispose() {
+    _autoRefreshTimer?.cancel();
+    _appProvider?.removeListener(_handleProviderChanged);
+    super.dispose();
+  }
+
+  void _handleProviderChanged() {
+    final provider = _appProvider;
+    if (!mounted || provider == null) return;
+    _configureAutoRefresh(provider);
+  }
+
+  void _configureAutoRefresh(AppProvider provider) {
+    _autoRefreshTimer?.cancel();
+    _autoRefreshTimer = null;
+
+    if (!provider.autoRefreshEnabled) return;
+
+    _autoRefreshTimer = Timer.periodic(
+      Duration(seconds: provider.autoRefreshIntervalSeconds),
+      (_) => _loadStats(silent: true),
+    );
+  }
+
+  Future<void> _loadStats({bool silent = false}) async {
+    if (_requestInFlight) return;
+
+    if (!silent) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
+
+    _requestInFlight = true;
     try {
       final api = context.read<AppProvider>().api;
 
-      final results = await Future.wait([
+      // 并行请求所有数据，apiKeys 单独处理以避免单个失败导致整体失败
+      final futures = await Future.wait([
         api.getStatsToday(),
         api.getStatsTotal(),
         api.getStatsDaily(),
         api.getStatsApiKey(),
         api.getChannels(),
-        _loadApiKeysForMapping(),
       ]);
+
+      // apiKeys 单独请求，失败不影响主流程
+      Map<int, APIKey> apiKeysMap = {};
+      try {
+        final apiKeys = await api.getApiKeys();
+        apiKeysMap = {for (var k in apiKeys) k.id: k};
+      } catch (_) {}
 
       if (mounted) {
         setState(() {
-          _today = results[0] as StatsMetrics?;
-          _total = results[1] as StatsMetrics?;
-          _daily = results[2] as List<StatsDaily>;
-          _apiKeyStats = results[3] as List<StatsAPIKeyEntry>;
-          _channels = results[4] as List<Channel>;
+          _today = futures[0] as StatsMetrics?;
+          _total = futures[1] as StatsMetrics?;
+          _daily = futures[2] as List<StatsDaily>;
+          _apiKeyStats = futures[3] as List<StatsAPIKeyEntry>;
+          _channels = futures[4] as List<Channel>;
+          _apiKeysMap = apiKeysMap;
           _loading = false;
-          _rankingExpanded = false;
+          _error = null;
+          _expandedRankings.clear();
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          if (!silent) {
+            _error = e.toString();
+          }
+        });
+      }
+    } finally {
+      _requestInFlight = false;
     }
-  }
-
-  Future<void> _loadApiKeysForMapping() async {
-    try {
-      final apiKeys = await context.read<AppProvider>().api.getApiKeys();
-      _apiKeysMap = {for (var k in apiKeys) k.id: k};
-    } catch (_) {}
   }
 
   String _getApiKeyDisplayName(int id) {
@@ -94,8 +157,44 @@ class _DashboardPageState extends State<DashboardPage> {
     return '\$${value.toStringAsFixed(digits)}';
   }
 
-  String _formatCurrencyCompact(num value) {
-    return '\$${value.toString()}';
+  String _formatCurrencyCompact(num value, {int digits = 4}) {
+    // 使用 toStringAsFixed 避免 toString() 输出科学计数法
+    return '\$${value.toStringAsFixed(digits)}';
+  }
+
+  String _formatDailyAxisDate(String date) {
+    final parsed = DateTime.tryParse(date);
+    if (parsed != null) {
+      return '${parsed.month}/${parsed.day}';
+    }
+    if (date.length >= 10) {
+      final month = int.tryParse(date.substring(5, 7));
+      final day = int.tryParse(date.substring(8, 10));
+      if (month != null && day != null) {
+        return '$month/$day';
+      }
+    }
+    return date;
+  }
+
+  double _calculateDailyAxisInterval(double maxValue, {int targetTicks = 5}) {
+    if (maxValue <= 0) return 1;
+
+    final rawInterval = maxValue / targetTicks;
+    final magnitude = math
+        .pow(10, (math.log(rawInterval) / math.ln10).floor())
+        .toDouble();
+    final normalized = rawInterval / magnitude;
+
+    final niceNormalized = switch (normalized) {
+      <= 1 => 1.0,
+      <= 2 => 2.0,
+      <= 2.5 => 2.5,
+      <= 5 => 5.0,
+      _ => 10.0,
+    };
+
+    return niceNormalized * magnitude;
   }
 
   StatsMetrics get _selectedStats =>
@@ -152,35 +251,26 @@ class _DashboardPageState extends State<DashboardPage> {
                       ),
                     },
                   ),
-                  const SizedBox(width: 4),
-                  GestureDetector(
-                    onTap: _loadStats,
-                    child: Icon(
-                      CupertinoIcons.refresh,
-                      size: 22,
-                      color: colorScheme.primary,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  GestureDetector(
-                    onTap: () => context.read<AppProvider>().logout(),
-                    child: Icon(
-                      CupertinoIcons.square_arrow_right,
-                      size: 22,
-                      color: colorScheme.primary,
-                    ),
-                  ),
                 ],
               ),
             ),
-            _buildCompactOverview(
-              theme,
-              colorScheme,
-              loc,
-              provider.waitTimeUnit,
+            CupertinoSliverRefreshControl(
+              onRefresh: () => _loadStats(silent: true),
             ),
-            if (_daily.isNotEmpty) _buildDailyChart(theme, colorScheme, loc),
-            _buildRankingSection(theme, colorScheme, loc),
+            if (_error != null)
+              SliverFillRemaining(
+                child: AppErrorState(message: _error!, onRetry: _loadStats),
+              )
+            else ...[
+              _buildCompactOverview(
+                theme,
+                colorScheme,
+                loc,
+                provider.waitTimeUnit,
+              ),
+              if (_daily.isNotEmpty) _buildDailyChart(theme, colorScheme, loc),
+              _buildRankingSection(theme, colorScheme, loc),
+            ],
             const SliverPadding(padding: EdgeInsets.only(bottom: 32)),
           ],
         ),
@@ -204,22 +294,30 @@ class _DashboardPageState extends State<DashboardPage> {
         0,
       ),
       sliver: SliverToBoxAdapter(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            GridView.count(
-              crossAxisCount: 2,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            const crossAxisCount = 2;
+            const spacing = AppTheme.spacingSm;
+            final itemWidth =
+                (constraints.maxWidth - spacing * (crossAxisCount - 1)) /
+                crossAxisCount;
+            final targetHeight = constraints.maxWidth < 380 ? 96.0 : 100.0;
+
+            return GridView.count(
+              crossAxisCount: crossAxisCount,
               shrinkWrap: true,
+              primary: false,
               physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: AppTheme.spacingSm,
-              crossAxisSpacing: AppTheme.spacingSm,
-              childAspectRatio: 1.6,
+              padding: EdgeInsets.zero,
+              mainAxisSpacing: spacing,
+              crossAxisSpacing: spacing,
+              childAspectRatio: itemWidth / targetHeight,
               children: [
                 _buildStatItem(
                   loc.t('requests'),
                   _formatNum(stats.requestSuccess + stats.requestFailed),
                   CupertinoIcons.paperplane,
-                  const Color(0xFF007AFF),
+                  AppTheme.colorBlue,
                   theme,
                   colorScheme,
                   '${loc.t('success')}: ${_formatNum(stats.requestSuccess)}',
@@ -228,7 +326,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   loc.t('cost'),
                   _formatCurrency(stats.totalCost),
                   CupertinoIcons.money_dollar_circle,
-                  const Color(0xFF34C759),
+                  AppTheme.colorGreen,
                   theme,
                   colorScheme,
                   '${loc.t('input')}: ${_formatCurrency(stats.inputCost)}',
@@ -237,23 +335,23 @@ class _DashboardPageState extends State<DashboardPage> {
                   loc.t('tokens'),
                   _formatNum(stats.totalTokens),
                   CupertinoIcons.chart_pie,
-                  const Color(0xFFFF9500),
+                  AppTheme.colorOrange,
                   theme,
                   colorScheme,
-                  'In: ${_formatNum(stats.inputToken)}',
+                  '${loc.t('input')}: ${_formatNum(stats.inputToken)}',
                 ),
                 _buildStatItem(
                   loc.t('success_rate'),
                   '${(stats.successRate * 100).toStringAsFixed(1)}%',
                   CupertinoIcons.arrow_up_circle,
-                  const Color(0xFFAF52DE),
+                  AppTheme.colorPurple,
                   theme,
                   colorScheme,
-                  'Avg: ${_formatWaitTime(stats.waitTime, loc)}',
+                  'Avg: ${_formatWaitTime(stats.waitTime, loc, waitUnit)}',
                 ),
               ],
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
@@ -269,13 +367,14 @@ class _DashboardPageState extends State<DashboardPage> {
     String? subtitle,
   ) {
     return Container(
-      padding: const EdgeInsets.all(AppTheme.spacingMd),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: AppTheme.getSurfaceLow(colorScheme),
         borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
         border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.15),
+          color: colorScheme.outlineVariant.withValues(alpha: 0.12),
         ),
+        boxShadow: AppTheme.getShadow(colorScheme),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -283,13 +382,24 @@ class _DashboardPageState extends State<DashboardPage> {
         children: [
           Row(
             children: [
-              Icon(icon, size: 12, color: color),
+              Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(icon, size: 11, color: color),
+              ),
               const SizedBox(width: AppTheme.spacingXs),
               Text(
                 label,
-                style: theme.textTheme.caption?.copyWith(
+                style: theme.textTheme.footnote?.copyWith(
                   fontWeight: FontWeight.w500,
+                  color: colorScheme.onSurfaceVariant,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
@@ -306,17 +416,31 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
           if (subtitle != null) ...[
             const SizedBox(height: 2),
-            Text(subtitle, style: theme.textTheme.caption),
+            Text(
+              subtitle,
+              style: theme.textTheme.footnote?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
         ],
       ),
     );
   }
 
-  String _formatWaitTime(int ms, AppLocalizations loc) {
-    if (ms < 1000) return '${ms}ms';
-    if (ms < 60000) return '${(ms / 1000).toStringAsFixed(1)}s';
-    return '${(ms / 60000).toStringAsFixed(1)}m';
+  String _formatWaitTime(int ms, AppLocalizations loc, WaitTimeUnit unit) {
+    switch (unit) {
+      case WaitTimeUnit.ms:
+        return '${ms}ms';
+      case WaitTimeUnit.s:
+        return '${(ms / 1000).toStringAsFixed(2)}s';
+      case WaitTimeUnit.auto:
+        if (ms < 1000) return '${ms}ms';
+        if (ms < 60000) return '${(ms / 1000).toStringAsFixed(1)}s';
+        return '${(ms / 60000).toStringAsFixed(1)}m';
+    }
   }
 
   Widget _buildDailyChart(
@@ -326,22 +450,111 @@ class _DashboardPageState extends State<DashboardPage> {
   ) {
     final data = _daily.reversed.toList();
 
-    return SliverToBoxAdapter(
-      child: AppSectionCard(
-        title: loc.t('daily_chart'),
-        subtitle: loc.t('daily_chart_subtitle'),
-        margin: const EdgeInsets.fromLTRB(
-          AppTheme.spacingLg,
-          AppTheme.spacingLg,
-          AppTheme.spacingLg,
-          0,
-        ),
-        padding: const EdgeInsets.all(AppTheme.spacingMd),
-        child: SizedBox(
-          height: 180,
-          child: _buildCombinedDailyChart(data, loc, theme, colorScheme),
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(
+        AppTheme.spacingLg,
+        AppTheme.spacingSm,
+        AppTheme.spacingLg,
+        0,
+      ),
+      sliver: SliverToBoxAdapter(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    loc.t('daily_chart'),
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: colorScheme.onSurface,
+                      letterSpacing: -0.4,
+                    ),
+                  ),
+                ),
+                Text(
+                  loc.t('daily_chart_subtitle'),
+                  style: theme.textTheme.footnote?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppTheme.spacingMd),
+            Container(
+              decoration: BoxDecoration(
+                color: AppTheme.getSurfaceLow(colorScheme),
+                borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+                border: Border.all(
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.12),
+                ),
+                boxShadow: AppTheme.getShadow(colorScheme),
+              ),
+              padding: const EdgeInsets.all(AppTheme.spacingMd),
+              child: Column(
+                children: [
+                  // 图例
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      _buildLegendItem(
+                        'Requests',
+                        AppTheme.colorBlue,
+                        CupertinoIcons.chart_bar_fill,
+                      ),
+                      const SizedBox(width: AppTheme.spacingMd),
+                      _buildLegendItem(
+                        'Cost',
+                        AppTheme.colorGreen,
+                        CupertinoIcons.money_dollar_circle_fill,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppTheme.spacingSm),
+                  SizedBox(
+                    height: 200,
+                    child: _buildCombinedDailyChart(
+                      data,
+                      loc,
+                      theme,
+                      colorScheme,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
+    );
+  }
+
+  Widget _buildLegendItem(String label, Color color, IconData icon) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Icon(icon, size: 10, color: color),
+        const SizedBox(width: 2),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            color: color,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 
@@ -362,6 +575,7 @@ class _DashboardPageState extends State<DashboardPage> {
       if (requests > maxRequests) maxRequests = requests;
       if (d.metrics.totalCost > maxCost) maxCost = d.metrics.totalCost;
     }
+    final yAxisInterval = _calculateDailyAxisInterval(maxRequests);
 
     return LineChart(
       LineChartData(
@@ -370,43 +584,66 @@ class _DashboardPageState extends State<DashboardPage> {
         gridData: FlGridData(
           show: true,
           drawVerticalLine: false,
-          horizontalInterval: maxRequests > 0 ? maxRequests / 3 : 1,
+          horizontalInterval: yAxisInterval,
           getDrawingHorizontalLine: (_) => FlLine(
-            color: colorScheme.outlineVariant.withValues(alpha: 0.2),
+            color: colorScheme.outlineVariant.withValues(alpha: 0.15),
             strokeWidth: 0.5,
+            dashArray: [4, 4],
           ),
         ),
         titlesData: FlTitlesData(
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 32,
+              interval: yAxisInterval,
+              reservedSize: 36,
               getTitlesWidget: (v, _) => Text(
                 _formatNum(v.toInt()),
-                style: TextStyle(color: const Color(0xFF007AFF), fontSize: 9),
+                style: TextStyle(
+                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                  fontSize: 9,
+                ),
               ),
             ),
           ),
           rightTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 36,
+              interval: yAxisInterval,
+              reservedSize: 42,
               getTitlesWidget: (v, _) => Text(
-                _formatCurrencyCompact(v.toInt()),
-                style: TextStyle(color: const Color(0xFF34C759), fontSize: 9),
+                _formatCurrencyCompact(
+                  maxRequests > 0 && maxCost > 0
+                      ? (v / maxRequests) * maxCost
+                      : 0,
+                  digits: 0,
+                ),
+                style: TextStyle(
+                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                  fontSize: 9,
+                ),
               ),
             ),
           ),
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
+              reservedSize: 24,
               getTitlesWidget: (v, _) {
                 final i = v.toInt();
                 if (i < 0 || i >= data.length) return const SizedBox();
                 final date = data[i].date;
-                return Text(
-                  date.length >= 5 ? date.substring(5) : date,
-                  style: const TextStyle(fontSize: 9),
+                return Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    _formatDailyAxisDate(date),
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: colorScheme.onSurfaceVariant.withValues(
+                        alpha: 0.7,
+                      ),
+                    ),
+                  ),
                 );
               },
               interval: data.length > 5 ? (data.length / 5).ceilToDouble() : 1,
@@ -431,73 +668,151 @@ class _DashboardPageState extends State<DashboardPage> {
                 )
                 .toList(),
             isCurved: true,
-            color: const Color(0xFF007AFF),
+            curveSmoothness: 0.35,
+            color: AppTheme.colorBlue,
             barWidth: 2.5,
             dotData: FlDotData(
-              show: data.length <= 5,
+              show: data.length <= 7,
+              checkToShowDot: (spot, barData) {
+                return spot.x == data.length - 1 ||
+                    (data.length <= 7 && spot.x % 1 == 0);
+              },
               getDotPainter: (spot, xPercent, bar, index) => FlDotCirclePainter(
-                radius: 2,
-                color: const Color(0xFF007AFF),
-                strokeWidth: 0,
+                radius: 3,
+                color: AppTheme.colorBlue,
+                strokeWidth: 2,
+                strokeColor: Colors.white,
               ),
             ),
             belowBarData: BarAreaData(
               show: true,
-              color: const Color(0xFF007AFF).withValues(alpha: 0.06),
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  AppTheme.colorBlue.withValues(alpha: 0.18),
+                  AppTheme.colorBlue.withValues(alpha: 0.02),
+                ],
+              ),
             ),
           ),
           LineChartBarData(
-            spots: maxCost > 0
-                ? data
-                      .asMap()
-                      .entries
-                      .map(
-                        (e) => FlSpot(
-                          e.key.toDouble(),
-                          maxRequests > 0
-                              ? (e.value.metrics.totalCost / maxCost) *
-                                    maxRequests
-                              : 0,
-                        ),
-                      )
-                      .toList()
-                : data.map((e) => FlSpot(0, 0)).toList(),
+            spots: data
+                .asMap()
+                .entries
+                .map(
+                  (e) => FlSpot(
+                    e.key.toDouble(),
+                    maxCost > 0 && maxRequests > 0
+                        ? (e.value.metrics.totalCost / maxCost) * maxRequests
+                        : 0,
+                  ),
+                )
+                .toList(),
             isCurved: true,
-            color: const Color(0xFF34C759),
+            curveSmoothness: 0.35,
+            color: AppTheme.colorGreen,
             barWidth: 2.5,
-            dotData: const FlDotData(show: false),
+            dotData: FlDotData(
+              show: data.length <= 7,
+              checkToShowDot: (spot, barData) {
+                return spot.x == data.length - 1 ||
+                    (data.length <= 7 && spot.x % 1 == 0);
+              },
+              getDotPainter: (spot, xPercent, bar, index) => FlDotCirclePainter(
+                radius: 3,
+                color: AppTheme.colorGreen,
+                strokeWidth: 2,
+                strokeColor: Colors.white,
+              ),
+            ),
             belowBarData: BarAreaData(
               show: true,
-              color: const Color(0xFF34C759).withValues(alpha: 0.06),
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  AppTheme.colorGreen.withValues(alpha: 0.14),
+                  AppTheme.colorGreen.withValues(alpha: 0.02),
+                ],
+              ),
             ),
           ),
         ],
         lineTouchData: LineTouchData(
+          enabled: true,
           touchTooltipData: LineTouchTooltipData(
+            fitInsideHorizontally: true,
+            fitInsideVertically: true,
+            getTooltipColor: (_) => colorScheme.surfaceContainerHighest,
+            tooltipPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 8,
+            ),
+            tooltipMargin: 8,
             getTooltipItems: (spots) => spots.map((s) {
-              if (s.barIndex == 0) {
-                final i = s.x.toInt();
+              final i = s.x.toInt();
+              final isRequests = s.barIndex == 0;
+              final color = isRequests
+                  ? AppTheme.colorBlue
+                  : AppTheme.colorGreen;
+
+              if (isRequests) {
                 final count = i >= 0 && i < data.length
                     ? data[i].metrics.requestSuccess +
                           data[i].metrics.requestFailed
                     : 0;
+                final date = i >= 0 && i < data.length ? data[i].date : '';
                 return LineTooltipItem(
-                  '${loc.t('daily_requests')}: $count',
-                  const TextStyle(color: Color(0xFF007AFF), fontSize: 11),
+                  '$date\n',
+                  TextStyle(
+                    color: colorScheme.onSurfaceVariant,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  children: [
+                    TextSpan(
+                      text: '${loc.t('daily_requests')}: ',
+                      style: TextStyle(
+                        color: colorScheme.onSurfaceVariant,
+                        fontSize: 11,
+                      ),
+                    ),
+                    TextSpan(
+                      text: _formatNum(count),
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
                 );
               }
-              final i = s.x.toInt();
               final cost = i >= 0 && i < data.length
                   ? data[i].metrics.totalCost
                   : 0.0;
               return LineTooltipItem(
-                '${loc.t('daily_cost')}: ${_formatCurrency(cost)}',
-                const TextStyle(color: Color(0xFF34C759), fontSize: 11),
+                '${loc.t('daily_cost')}: ',
+                TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 11),
+                children: [
+                  TextSpan(
+                    text: _formatCurrency(cost, digits: 0),
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               );
             }).toList(),
           ),
+          handleBuiltInTouches: true,
         ),
       ),
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOutCubic,
     );
   }
 
@@ -515,9 +830,23 @@ class _DashboardPageState extends State<DashboardPage> {
         ? _rankingPreviewCountMobile
         : _rankingPreviewCount;
 
-    final tokenPreview = tokenRanking.take(previewCount).toList();
-    final requestPreview = requestRanking.take(previewCount).toList();
-    final apiKeyPreview = apiKeyRanking.take(previewCount).toList();
+    const tokenKey = 'token';
+    const requestKey = 'request';
+    const apiKeyKey = 'apikey';
+
+    final tokenExpanded = _expandedRankings.contains(tokenKey);
+    final requestExpanded = _expandedRankings.contains(requestKey);
+    final apiKeyExpanded = _expandedRankings.contains(apiKeyKey);
+
+    final tokenItems = tokenExpanded
+        ? tokenRanking
+        : tokenRanking.take(previewCount).toList();
+    final requestItems = requestExpanded
+        ? requestRanking
+        : requestRanking.take(previewCount).toList();
+    final apiKeyItems = apiKeyExpanded
+        ? apiKeyRanking
+        : apiKeyRanking.take(previewCount).toList();
 
     return SliverPadding(
       padding: const EdgeInsets.fromLTRB(
@@ -539,74 +868,106 @@ class _DashboardPageState extends State<DashboardPage> {
                       fontSize: 22,
                       fontWeight: FontWeight.w700,
                       color: colorScheme.onSurface,
+                      letterSpacing: -0.4,
                     ),
                   ),
                 ),
-                Text(loc.t('ranking_subtitle'), style: theme.textTheme.caption),
+                Text(
+                  loc.t('ranking_subtitle'),
+                  style: theme.textTheme.footnote?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: AppTheme.spacingMd),
             _buildRankingCard(
               loc.t('token_consumption_ranking'),
-              tokenPreview,
+              tokenItems,
               tokenRanking.length > previewCount,
+              tokenExpanded,
               CupertinoIcons.flame,
-              const Color(0xFFFF9500),
+              AppTheme.colorOrange,
               theme,
               colorScheme,
               loc,
-              (item) {
-                if (item is Channel) {
+              (item, rank) {
+                if (item is Channel && item.stats != null) {
                   return _buildChannelRankingTile(
                     item,
                     theme,
                     colorScheme,
                     item.stats!,
                     'token',
+                    rank,
+                    loc,
                   );
                 }
                 return const SizedBox.shrink();
               },
+              () => setState(() {
+                tokenExpanded
+                    ? _expandedRankings.remove(tokenKey)
+                    : _expandedRankings.add(tokenKey);
+              }),
             ),
             const SizedBox(height: AppTheme.spacingLg),
             _buildRankingCard(
               loc.t('request_activity_ranking'),
-              requestPreview,
+              requestItems,
               requestRanking.length > previewCount,
+              requestExpanded,
               CupertinoIcons.arrow_up_circle,
-              const Color(0xFF007AFF),
+              AppTheme.colorBlue,
               theme,
               colorScheme,
               loc,
-              (item) {
-                if (item is Channel) {
+              (item, rank) {
+                if (item is Channel && item.stats != null) {
                   return _buildChannelRankingTile(
                     item,
                     theme,
                     colorScheme,
                     item.stats!,
                     'request',
+                    rank,
+                    loc,
                   );
                 }
                 return const SizedBox.shrink();
               },
+              () => setState(() {
+                requestExpanded
+                    ? _expandedRankings.remove(requestKey)
+                    : _expandedRankings.add(requestKey);
+              }),
             ),
             const SizedBox(height: AppTheme.spacingLg),
             _buildRankingCard(
               loc.t('key_usage_ranking'),
-              apiKeyPreview,
+              apiKeyItems,
               apiKeyRanking.length > previewCount,
+              apiKeyExpanded,
               CupertinoIcons.tag,
-              const Color(0xFFAF52DE),
+              AppTheme.colorPurple,
               theme,
               colorScheme,
               loc,
-              (item) => _buildApiKeyRankingTile(
-                item as StatsAPIKeyEntry,
-                theme,
-                colorScheme,
-                loc,
-              ),
+              (item, rank) {
+                if (item is! StatsAPIKeyEntry) return const SizedBox.shrink();
+                return _buildApiKeyRankingTile(
+                  item,
+                  theme,
+                  colorScheme,
+                  loc,
+                  rank,
+                );
+              },
+              () => setState(() {
+                apiKeyExpanded
+                    ? _expandedRankings.remove(apiKeyKey)
+                    : _expandedRankings.add(apiKeyKey);
+              }),
             ),
           ],
         ),
@@ -642,20 +1003,23 @@ class _DashboardPageState extends State<DashboardPage> {
     String title,
     List<dynamic> items,
     bool hasMore,
+    bool isExpanded,
     IconData icon,
     Color accentColor,
     ThemeData theme,
     ColorScheme colorScheme,
     AppLocalizations loc,
-    Widget Function(dynamic) itemBuilder,
+    Widget Function(dynamic, int) itemBuilder,
+    VoidCallback? onToggleExpand,
   ) {
     return Container(
       decoration: BoxDecoration(
         color: AppTheme.getSurfaceLow(colorScheme),
         borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
         border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.15),
+          color: colorScheme.outlineVariant.withValues(alpha: 0.12),
         ),
+        boxShadow: AppTheme.getShadow(colorScheme),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -664,12 +1028,21 @@ class _DashboardPageState extends State<DashboardPage> {
             padding: const EdgeInsets.all(AppTheme.spacingMd),
             child: Row(
               children: [
-                Icon(icon, size: 14, color: accentColor),
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: accentColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Icon(icon, size: 13, color: accentColor),
+                ),
                 const SizedBox(width: AppTheme.spacingSm),
                 Text(
                   title,
                   style: theme.textTheme.footnote?.copyWith(
                     fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurface,
                   ),
                 ),
               ],
@@ -679,7 +1052,7 @@ class _DashboardPageState extends State<DashboardPage> {
             Padding(
               padding: const EdgeInsets.all(AppTheme.spacingMd),
               child: Center(
-                child: Text(loc.t('no_data'), style: theme.textTheme.caption),
+                child: Text(loc.t('no_data'), style: theme.textTheme.footnote),
               ),
             )
           else
@@ -695,13 +1068,13 @@ class _DashboardPageState extends State<DashboardPage> {
                       endIndent: AppTheme.spacingLg,
                       color: colorScheme.outlineVariant.withValues(alpha: 0.2),
                     ),
-                  itemBuilder(item),
+                  itemBuilder(item, index + 1),
                 ],
               );
             }),
-          if (hasMore && !_rankingExpanded)
+          if (hasMore)
             GestureDetector(
-              onTap: () => setState(() => _rankingExpanded = true),
+              onTap: onToggleExpand,
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(
@@ -718,14 +1091,16 @@ class _DashboardPageState extends State<DashboardPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        loc.t('show_more'),
+                        isExpanded ? loc.t('collapse') : loc.t('show_more'),
                         style: theme.textTheme.footnote?.copyWith(
                           color: colorScheme.primary,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
                       Icon(
-                        CupertinoIcons.chevron_down,
+                        isExpanded
+                            ? CupertinoIcons.chevron_up
+                            : CupertinoIcons.chevron_down,
                         size: 14,
                         color: colorScheme.primary,
                       ),
@@ -745,15 +1120,17 @@ class _DashboardPageState extends State<DashboardPage> {
     ColorScheme colorScheme,
     StatsChannel stats,
     String type,
+    int rank,
+    AppLocalizations loc,
   ) {
     String value;
     Color valueColor;
     if (type == 'token') {
       value = _formatNum(stats.inputToken + stats.outputToken);
-      valueColor = const Color(0xFFFF9500);
+      valueColor = AppTheme.colorOrange;
     } else {
       value = _formatNum(stats.requestSuccess + stats.requestFailed);
-      valueColor = const Color(0xFF007AFF);
+      valueColor = AppTheme.colorBlue;
     }
 
     final successRate = (stats.requestSuccess + stats.requestFailed) > 0
@@ -767,7 +1144,7 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
       child: Row(
         children: [
-          _buildRankBadge(channel.id % 100),
+          _buildRankBadge(rank),
           const SizedBox(width: AppTheme.spacingSm),
           Expanded(
             child: Column(
@@ -783,8 +1160,8 @@ class _DashboardPageState extends State<DashboardPage> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  '${(successRate * 100).toStringAsFixed(0)}% success',
-                  style: theme.textTheme.caption,
+                  '${(successRate * 100).toStringAsFixed(0)}% ${loc.t('success')}',
+                  style: theme.textTheme.footnote,
                 ),
               ],
             ),
@@ -807,6 +1184,7 @@ class _DashboardPageState extends State<DashboardPage> {
     ThemeData theme,
     ColorScheme colorScheme,
     AppLocalizations loc,
+    int rank,
   ) {
     final displayName = _getApiKeyDisplayName(entry.apiKeyId);
     final metrics = entry.metrics;
@@ -819,7 +1197,7 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
       child: Row(
         children: [
-          _buildRankBadge(entry.apiKeyId % 100),
+          _buildRankBadge(rank),
           const SizedBox(width: AppTheme.spacingSm),
           Expanded(
             child: Column(
@@ -836,7 +1214,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
                 Text(
                   _formatCurrency(entry.metrics.totalCost),
-                  style: theme.textTheme.caption,
+                  style: theme.textTheme.footnote,
                 ),
               ],
             ),
@@ -846,7 +1224,7 @@ class _DashboardPageState extends State<DashboardPage> {
             style: const TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w600,
-              color: Color(0xFFAF52DE),
+              color: AppTheme.colorPurple,
             ),
           ),
         ],
@@ -862,13 +1240,13 @@ class _DashboardPageState extends State<DashboardPage> {
         width: 22,
         height: 22,
         decoration: BoxDecoration(
-          color: const Color(0xFFFF9500).withValues(alpha: 0.15),
+          color: AppTheme.colorOrange.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
         ),
-        child: const Icon(
+        child: Icon(
           CupertinoIcons.star_fill,
           size: 12,
-          color: Color(0xFFFF9500),
+          color: AppTheme.colorOrange,
         ),
       );
     }
@@ -877,13 +1255,13 @@ class _DashboardPageState extends State<DashboardPage> {
         width: 22,
         height: 22,
         decoration: BoxDecoration(
-          color: const Color(0xFF8E8E93).withValues(alpha: 0.15),
+          color: AppTheme.colorGray.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
         ),
-        child: const Icon(
+        child: Icon(
           CupertinoIcons.star_fill,
           size: 12,
-          color: Color(0xFF8E8E93),
+          color: AppTheme.colorGray,
         ),
       );
     }
@@ -892,13 +1270,13 @@ class _DashboardPageState extends State<DashboardPage> {
         width: 22,
         height: 22,
         decoration: BoxDecoration(
-          color: const Color(0xFFAF52DE).withValues(alpha: 0.15),
+          color: AppTheme.colorPurple.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
         ),
-        child: const Icon(
+        child: Icon(
           CupertinoIcons.star_fill,
           size: 12,
-          color: Color(0xFFAF52DE),
+          color: AppTheme.colorPurple,
         ),
       );
     }

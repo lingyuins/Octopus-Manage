@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -50,49 +51,77 @@ class ApiService {
     if (_token.isNotEmpty) 'Authorization': 'Bearer $_token',
   };
 
-  Future<Map<String, dynamic>> get(String path) async {
-    final response = await http
-        .get(Uri.parse('$_baseUrl$path'), headers: _headers)
-        .timeout(const Duration(seconds: 15));
-    return _handleResponse(response);
+  static const _timeout = Duration(seconds: 15);
+
+  Future<Map<String, dynamic>> get(String path, {Map<String, String>? query}) async {
+    try {
+      final uri = Uri.parse('$_baseUrl$path');
+      final finalUri = query != null ? uri.replace(queryParameters: query) : uri;
+      final response = await http
+          .get(finalUri, headers: _headers)
+          .timeout(_timeout);
+      return _handleResponse(response);
+    } on TimeoutException {
+      throw ApiException(0, 'Request timed out');
+    }
   }
 
-  Future<Map<String, dynamic>> post(String path, {dynamic body}) async {
-    final response = await http
-        .post(
-          Uri.parse('$_baseUrl$path'),
-          headers: _headers,
-          body: jsonEncode(body),
-        )
-        .timeout(const Duration(seconds: 15));
-    return _handleResponse(response);
+  Future<dynamic> post(String path, {dynamic body, String? contentType}) async {
+    try {
+      final headers = Map<String, String>.from(_headers);
+      if (contentType != null) {
+        headers['Content-Type'] = contentType;
+      }
+      final response = await http
+          .post(
+            Uri.parse('$_baseUrl$path'),
+            headers: headers,
+            body: contentType == 'application/json' ? body : jsonEncode(body),
+          )
+          .timeout(_timeout);
+      // Handle raw string response for export endpoint
+      if (contentType == 'application/json' && body is String) {
+        return _handleRawResponse(response);
+      }
+      return _handleResponse(response);
+    } on TimeoutException {
+      throw ApiException(0, 'Request timed out');
+    }
   }
 
   Future<Map<String, dynamic>> put(String path, {dynamic body}) async {
-    final response = await http
-        .put(
-          Uri.parse('$_baseUrl$path'),
-          headers: _headers,
-          body: jsonEncode(body),
-        )
-        .timeout(const Duration(seconds: 15));
-    return _handleResponse(response);
+    try {
+      final response = await http
+          .put(
+            Uri.parse('$_baseUrl$path'),
+            headers: _headers,
+            body: jsonEncode(body),
+          )
+          .timeout(_timeout);
+      return _handleResponse(response);
+    } on TimeoutException {
+      throw ApiException(0, 'Request timed out');
+    }
   }
 
   Future<Map<String, dynamic>> delete(String path) async {
-    final response = await http
-        .delete(Uri.parse('$_baseUrl$path'), headers: _headers)
-        .timeout(const Duration(seconds: 15));
-    return _handleResponse(response);
+    try {
+      final response = await http
+          .delete(Uri.parse('$_baseUrl$path'), headers: _headers)
+          .timeout(_timeout);
+      return _handleResponse(response);
+    } on TimeoutException {
+      throw ApiException(0, 'Request timed out');
+    }
   }
 
   Map<String, dynamic> _handleResponse(http.Response response) {
     Map<String, dynamic> json;
     try {
       json = jsonDecode(response.body) as Map<String, dynamic>;
-    } catch (_) {
+    } on FormatException catch (_) {
       if (response.statusCode == 401) {
-        if (_token.isNotEmpty) forceLogout();
+        _forceLogoutSync();
         throw ApiException(401, 'Unauthorized');
       }
       if (response.statusCode >= 400) {
@@ -102,9 +131,15 @@ class ApiService {
         );
       }
       throw ApiException(0, 'Invalid response body');
+    } on TypeError {
+      if (response.statusCode == 401) {
+        _forceLogoutSync();
+        throw ApiException(401, 'Unauthorized');
+      }
+      throw ApiException(0, 'Invalid response format');
     }
     if (response.statusCode == 401) {
-      if (_token.isNotEmpty) forceLogout();
+      _forceLogoutSync();
       throw ApiException(401, json['message'] as String? ?? 'Unauthorized');
     }
     if (response.statusCode >= 400) {
@@ -114,6 +149,27 @@ class ApiService {
       );
     }
     return json;
+  }
+
+  dynamic _handleRawResponse(http.Response response) {
+    if (response.statusCode >= 400) {
+      throw ApiException(
+        response.statusCode,
+        'Request failed (${response.statusCode})',
+      );
+    }
+    return response.body;
+  }
+
+  /// Synchronous logout + notification for use inside synchronous
+  /// [_handleResponse] where we cannot await [forceLogout].
+  void _forceLogoutSync() {
+    _token = '';
+    SharedPreferences.getInstance().then(
+      (prefs) => prefs.remove(_keyToken),
+      onError: (_) {},
+    );
+    onUnauthorized?.call();
   }
 }
 

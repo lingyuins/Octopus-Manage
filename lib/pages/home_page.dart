@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:octopusmanage/pages/dashboard_page.dart';
 import 'package:octopusmanage/pages/channel_page.dart';
 import 'package:octopusmanage/pages/group_page.dart';
+import 'package:octopusmanage/pages/model_page.dart';
 import 'package:octopusmanage/pages/api_key_page.dart';
 import 'package:octopusmanage/pages/log_page.dart';
 import 'package:octopusmanage/pages/setting_page.dart';
+import 'package:octopusmanage/theme/app_theme.dart';
 import 'package:octopusmanage/providers/app_provider.dart';
 import 'package:provider/provider.dart';
 
@@ -21,6 +23,7 @@ class _HomePageState extends State<HomePage> {
     DashboardPage(),
     ChannelPage(),
     GroupPage(),
+    ModelPage(),
     ApiKeyPage(),
     LogPage(),
     SettingPage(),
@@ -30,7 +33,7 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final loc = context.watch<AppProvider>().loc;
     final colorScheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xFF007AFF),
+      seedColor: AppTheme.colorBlue,
       brightness: Brightness.light,
     );
 
@@ -54,6 +57,10 @@ class _HomePageState extends State<HomePage> {
           BottomNavigationBarItem(
             icon: Icon(CupertinoIcons.folder),
             label: loc.t('groups'),
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(CupertinoIcons.cube_box),
+            label: loc.t('models'),
           ),
           BottomNavigationBarItem(
             icon: Icon(CupertinoIcons.tag),

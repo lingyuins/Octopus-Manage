@@ -7,10 +7,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 enum WaitTimeUnit { ms, s, auto }
 
 const kWaitTimeUnitKey = 'wait_time_unit';
+const kAutoRefreshEnabledKey = 'auto_refresh_enabled';
+const kAutoRefreshIntervalSecondsKey = 'auto_refresh_interval_seconds';
 
 class AppProvider extends ChangeNotifier {
   final ApiService _apiService = ApiService();
   late final OctopusApi api;
+  SharedPreferences? _prefs;
 
   bool _initialized = false;
   bool _loading = true;
@@ -18,6 +21,8 @@ class AppProvider extends ChangeNotifier {
   AppLocale _locale = AppLocale.en;
   bool? _bootstrapped;
   WaitTimeUnit _waitTimeUnit = WaitTimeUnit.auto;
+  bool _autoRefreshEnabled = false;
+  int _autoRefreshIntervalSeconds = 30;
 
   bool get initialized => _initialized;
   bool get loading => _loading;
@@ -29,6 +34,8 @@ class AppProvider extends ChangeNotifier {
   bool? get bootstrapped => _bootstrapped;
   bool get needsBootstrap => _bootstrapped == false;
   WaitTimeUnit get waitTimeUnit => _waitTimeUnit;
+  bool get autoRefreshEnabled => _autoRefreshEnabled;
+  int get autoRefreshIntervalSeconds => _autoRefreshIntervalSeconds;
 
   Locale get flutterLocale =>
       AppLocalizations.localeMap[_locale] ?? const Locale('en');
@@ -46,8 +53,8 @@ class AppProvider extends ChangeNotifier {
     _loading = true;
     notifyListeners();
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final savedLocale = prefs.getString(kLocaleKey);
+      _prefs = await SharedPreferences.getInstance();
+      final savedLocale = _prefs!.getString(kLocaleKey);
       if (savedLocale != null) {
         _locale = AppLocale.values.firstWhere(
           (e) => e.name == savedLocale,
@@ -57,13 +64,17 @@ class AppProvider extends ChangeNotifier {
         final systemLocale = WidgetsBinding.instance.platformDispatcher.locale;
         _locale = AppLocalizations.fromLocale(systemLocale);
       }
-      final savedWaitUnit = prefs.getString(kWaitTimeUnitKey);
+      final savedWaitUnit = _prefs!.getString(kWaitTimeUnitKey);
       if (savedWaitUnit != null) {
         _waitTimeUnit = WaitTimeUnit.values.firstWhere(
           (e) => e.name == savedWaitUnit,
           orElse: () => WaitTimeUnit.auto,
         );
       }
+      _autoRefreshEnabled = _prefs!.getBool(kAutoRefreshEnabledKey) ?? false;
+      _autoRefreshIntervalSeconds = _normalizeAutoRefreshInterval(
+        _prefs!.getInt(kAutoRefreshIntervalSecondsKey) ?? 30,
+      );
       await _apiService.loadSavedState();
       _initialized = true;
     } catch (e) {
@@ -76,15 +87,28 @@ class AppProvider extends ChangeNotifier {
 
   Future<void> setWaitTimeUnit(WaitTimeUnit unit) async {
     _waitTimeUnit = unit;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(kWaitTimeUnitKey, unit.name);
+    await _prefs?.setString(kWaitTimeUnitKey, unit.name);
+    notifyListeners();
+  }
+
+  Future<void> setAutoRefreshEnabled(bool enabled) async {
+    _autoRefreshEnabled = enabled;
+    await _prefs?.setBool(kAutoRefreshEnabledKey, enabled);
+    notifyListeners();
+  }
+
+  Future<void> setAutoRefreshIntervalSeconds(int seconds) async {
+    _autoRefreshIntervalSeconds = _normalizeAutoRefreshInterval(seconds);
+    await _prefs?.setInt(
+      kAutoRefreshIntervalSecondsKey,
+      _autoRefreshIntervalSeconds,
+    );
     notifyListeners();
   }
 
   Future<void> setLocale(AppLocale locale) async {
     _locale = locale;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(kLocaleKey, locale.name);
+    await _prefs?.setString(kLocaleKey, locale.name);
     notifyListeners();
   }
 
@@ -120,6 +144,7 @@ class AppProvider extends ChangeNotifier {
       _bootstrapped = data['initialized'] == true;
     } catch (e) {
       _bootstrapped = null;
+      _error = e.toString();
     }
     notifyListeners();
   }
@@ -129,6 +154,7 @@ class AppProvider extends ChangeNotifier {
       final success = await api.createAdmin(username, password);
       if (success) {
         _bootstrapped = true;
+        notifyListeners();
       }
       return success;
     } catch (e) {
@@ -149,8 +175,25 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  int _normalizeAutoRefreshInterval(int seconds) {
+    switch (seconds) {
+      case 15:
+      case 30:
+      case 60:
+        return seconds;
+      default:
+        return 30;
+    }
+  }
+
   void clearError() {
     _error = null;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _apiService.onUnauthorized = null;
+    super.dispose();
   }
 }

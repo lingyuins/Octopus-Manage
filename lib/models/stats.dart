@@ -1,3 +1,5 @@
+import 'package:octopusmanage/utils/parse_utils.dart';
+
 class StatsMetrics {
   final int inputToken;
   final int outputToken;
@@ -25,15 +27,25 @@ class StatsMetrics {
 
   factory StatsMetrics.fromJson(Map<String, dynamic> json) {
     return StatsMetrics(
-      inputToken: json['input_token'] as int? ?? 0,
-      outputToken: json['output_token'] as int? ?? 0,
+      inputToken: parseInt(json['input_token']),
+      outputToken: parseInt(json['output_token']),
       inputCost: (json['input_cost'] as num?)?.toDouble() ?? 0,
       outputCost: (json['output_cost'] as num?)?.toDouble() ?? 0,
-      waitTime: json['wait_time'] as int? ?? 0,
-      requestSuccess: json['request_success'] as int? ?? 0,
-      requestFailed: json['request_failed'] as int? ?? 0,
+      waitTime: parseInt(json['wait_time']),
+      requestSuccess: parseInt(json['request_success']),
+      requestFailed: parseInt(json['request_failed']),
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'input_token': inputToken,
+    'output_token': outputToken,
+    'input_cost': inputCost,
+    'output_cost': outputCost,
+    'wait_time': waitTime,
+    'request_success': requestSuccess,
+    'request_failed': requestFailed,
+  };
 }
 
 class StatsDaily {
@@ -48,6 +60,11 @@ class StatsDaily {
       metrics: StatsMetrics.fromJson(json),
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'date': date,
+    ...metrics.toJson(),
+  };
 }
 
 class StatsHourly {
@@ -59,11 +76,17 @@ class StatsHourly {
 
   factory StatsHourly.fromJson(Map<String, dynamic> json) {
     return StatsHourly(
-      hour: json['hour'] as int? ?? 0,
+      hour: parseInt(json['hour']),
       date: json['date'] as String? ?? '',
       metrics: StatsMetrics.fromJson(json),
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'hour': hour,
+    'date': date,
+    ...metrics.toJson(),
+  };
 }
 
 class StatsAPIKeyEntry {
@@ -74,8 +97,13 @@ class StatsAPIKeyEntry {
 
   factory StatsAPIKeyEntry.fromJson(Map<String, dynamic> json) {
     return StatsAPIKeyEntry(
-      apiKeyId: json['api_key_id'] as int? ?? 0,
+      apiKeyId: parseInt(json['api_key_id']),
       metrics: StatsMetrics.fromJson(json),
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'api_key_id': apiKeyId,
+    ...metrics.toJson(),
+  };
 }

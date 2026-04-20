@@ -1,3 +1,5 @@
+import 'package:octopusmanage/utils/parse_utils.dart';
+
 class RelayLog {
   final int id;
   final int time;
@@ -31,21 +33,37 @@ class RelayLog {
 
   factory RelayLog.fromJson(Map<String, dynamic> json) {
     return RelayLog(
-      id: json['id'] as int? ?? 0,
-      time: json['time'] as int? ?? 0,
+      id: parseInt(json['id']),
+      time: parseInt(json['time']),
       requestModelName: json['request_model_name'] as String? ?? '',
       requestApiKeyName: json['request_api_key_name'] as String? ?? '',
-      channelId: json['channel'] as int? ?? 0,
+      channelId: parseInt(json['channel_id'] ?? json['channel']),
       channelName: json['channel_name'] as String? ?? '',
       actualModelName: json['actual_model_name'] as String? ?? '',
-      inputTokens: json['input_tokens'] as int? ?? 0,
-      outputTokens: json['output_tokens'] as int? ?? 0,
-      ftut: json['ftut'] as int? ?? 0,
-      useTime: json['use_time'] as int? ?? 0,
+      inputTokens: parseInt(json['input_tokens']),
+      outputTokens: parseInt(json['output_tokens']),
+      ftut: parseInt(json['ftut']),
+      useTime: parseInt(json['use_time']),
       cost: (json['cost'] as num?)?.toDouble() ?? 0,
       error: json['error'] as String? ?? '',
     );
   }
 
   bool get hasError => error.isNotEmpty;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'time': time,
+    'request_model_name': requestModelName,
+    'request_api_key_name': requestApiKeyName,
+    'channel_id': channelId,
+    'channel_name': channelName,
+    'actual_model_name': actualModelName,
+    'input_tokens': inputTokens,
+    'output_tokens': outputTokens,
+    'ftut': ftut,
+    'use_time': useTime,
+    'cost': cost,
+    'error': error,
+  };
 }

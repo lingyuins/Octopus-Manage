@@ -42,7 +42,7 @@ class AppEmptyState extends StatelessWidget {
               child: Icon(
                 icon,
                 size: iconSize,
-                color: accent.withValues(alpha: 0.6),
+                color: accent.withValues(alpha: 0.5),
               ),
             ),
             const SizedBox(height: AppTheme.spacingLg),
@@ -52,6 +52,7 @@ class AppEmptyState extends StatelessWidget {
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
                 color: colorScheme.onSurface,
+                letterSpacing: -0.4,
               ),
               textAlign: TextAlign.center,
             ),
@@ -61,6 +62,7 @@ class AppEmptyState extends StatelessWidget {
                 subtitle!,
                 style: theme.textTheme.footnote?.copyWith(
                   color: colorScheme.onSurfaceVariant,
+                  height: 1.4,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -90,7 +92,7 @@ class AppLoadingState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          CupertinoActivityIndicator(radius: 16),
+          CupertinoActivityIndicator(radius: 14),
           if (message != null) ...[
             const SizedBox(height: AppTheme.spacingLg),
             Text(

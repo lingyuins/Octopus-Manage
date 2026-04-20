@@ -8,6 +8,7 @@ import 'package:octopusmanage/theme/app_theme.dart';
 import 'package:octopusmanage/widgets/app_chips.dart';
 import 'package:octopusmanage/widgets/app_dialogs.dart';
 import 'package:octopusmanage/widgets/app_empty_state.dart';
+import 'package:octopusmanage/widgets/app_error_dialog.dart';
 import 'package:octopusmanage/widgets/app_list_tile.dart';
 import 'package:provider/provider.dart';
 
@@ -35,18 +36,7 @@ class _ApiKeyPageState extends State<ApiKeyPage> {
       _keys = await api.getApiKeys();
     } catch (e) {
       if (mounted) {
-        showCupertinoDialog(
-          context: context,
-          builder: (_) => CupertinoAlertDialog(
-            title: Text(e.toString()),
-            actions: [
-              CupertinoDialogAction(
-                child: Text('OK'),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ],
-          ),
-        );
+        showErrorDialog(context, e.toString());
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -69,18 +59,7 @@ class _ApiKeyPageState extends State<ApiKeyPage> {
       _loadKeys();
     } catch (e) {
       if (mounted) {
-        showCupertinoDialog(
-          context: context,
-          builder: (_) => CupertinoAlertDialog(
-            title: Text(e.toString()),
-            actions: [
-              CupertinoDialogAction(
-                child: Text('OK'),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ],
-          ),
-        );
+        showErrorDialog(context, e.toString());
       }
     }
   }
@@ -96,23 +75,13 @@ class _ApiKeyPageState extends State<ApiKeyPage> {
     );
     if (!confirmed) return;
     try {
+      if (!mounted) return;
       final api = context.read<AppProvider>().api;
       await api.deleteApiKey(key.id);
       _loadKeys();
     } catch (e) {
       if (mounted) {
-        showCupertinoDialog(
-          context: context,
-          builder: (_) => CupertinoAlertDialog(
-            title: Text(e.toString()),
-            actions: [
-              CupertinoDialogAction(
-                child: Text('OK'),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ],
-          ),
-        );
+        showErrorDialog(context, e.toString());
       }
     }
   }
@@ -225,6 +194,12 @@ class _ApiKeyPageState extends State<ApiKeyPage> {
       ),
     );
 
+    // 先提取文本再 dispose，避免 use-after-dispose
+    final name = nameCtl.text.trim();
+    final maxCostText = maxCostCtl.text;
+    final expireAtText = expireAtCtl.text;
+    final supportedModels = supportedModelsCtl.text.trim();
+
     nameCtl.dispose();
     maxCostCtl.dispose();
     expireAtCtl.dispose();
@@ -233,14 +208,15 @@ class _ApiKeyPageState extends State<ApiKeyPage> {
     if (result != true) return;
 
     try {
+      if (!mounted) return;
       final api = context.read<AppProvider>().api;
       final key = APIKey(
         id: existing?.id ?? 0,
-        name: nameCtl.text.trim(),
+        name: name,
         enabled: enabled,
-        expireAt: int.tryParse(expireAtCtl.text) ?? 0,
-        maxCost: double.tryParse(maxCostCtl.text) ?? 0,
-        supportedModels: supportedModelsCtl.text.trim(),
+        expireAt: int.tryParse(expireAtText) ?? 0,
+        maxCost: double.tryParse(maxCostText) ?? 0,
+        supportedModels: supportedModels,
       );
       if (isEdit) {
         await api.updateApiKey(key);
@@ -259,18 +235,7 @@ class _ApiKeyPageState extends State<ApiKeyPage> {
       _loadKeys();
     } catch (e) {
       if (mounted) {
-        showCupertinoDialog(
-          context: context,
-          builder: (_) => CupertinoAlertDialog(
-            title: Text(e.toString()),
-            actions: [
-              CupertinoDialogAction(
-                child: Text('OK'),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ],
-          ),
-        );
+        showErrorDialog(context, e.toString());
       }
     }
   }
@@ -288,6 +253,9 @@ class _ApiKeyPageState extends State<ApiKeyPage> {
         child: Stack(
           children: [
             CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              ),
               slivers: [
                 CupertinoSliverNavigationBar(
                   largeTitle: Text(loc.t('api_keys')),
@@ -296,6 +264,7 @@ class _ApiKeyPageState extends State<ApiKeyPage> {
                   ).withValues(alpha: 0.85),
                   border: null,
                 ),
+                CupertinoSliverRefreshControl(onRefresh: _loadKeys),
                 if (_loading)
                   const SliverFillRemaining(
                     hasScrollBody: false,
@@ -362,18 +331,21 @@ class _ApiKeyPageState extends State<ApiKeyPage> {
                                   padding: const EdgeInsets.only(
                                     top: AppTheme.spacingXs,
                                   ),
-                                  child: Wrap(
-                                    spacing: AppTheme.spacingSm,
-                                    children: key.supportedModels
-                                        .split(',')
-                                        .take(3)
-                                        .map(
-                                          (m) => AppInfoChip(
-                                            icon: CupertinoIcons.cube_box,
-                                            label: m.trim(),
-                                          ),
-                                        )
-                                        .toList(),
+                                  child: ClipRect(
+                                    child: Wrap(
+                                      spacing: AppTheme.spacingSm,
+                                      runSpacing: AppTheme.spacingXs,
+                                      children: key.supportedModels
+                                          .split(',')
+                                          .take(3)
+                                          .map(
+                                            (m) => AppInfoChip(
+                                              icon: CupertinoIcons.cube_box,
+                                              label: m.trim(),
+                                            ),
+                                          )
+                                          .toList(),
+                                    ),
                                   ),
                                 ),
                             ],
@@ -410,31 +382,37 @@ class _ApiKeyPageState extends State<ApiKeyPage> {
               Positioned(
                 right: AppTheme.spacingLg,
                 bottom: 24,
-                child: CupertinoButton(
-                  padding: EdgeInsets.zero,
-                  borderRadius: BorderRadius.circular(28),
-                  color: colorScheme.primary,
-                  onPressed: () => _showApiKeyDialog(),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const SizedBox(width: 16),
-                      const Icon(
-                        CupertinoIcons.add,
-                        size: 22,
-                        color: Colors.white,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        loc.t('create_api_key'),
-                        style: const TextStyle(
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(28),
+                    boxShadow: AppTheme.getShadowMedium(colorScheme),
+                  ),
+                  child: CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    borderRadius: BorderRadius.circular(28),
+                    color: colorScheme.primary,
+                    onPressed: () => _showApiKeyDialog(),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(width: 16),
+                        const Icon(
+                          CupertinoIcons.add,
+                          size: 22,
                           color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500,
                         ),
-                      ),
-                      const SizedBox(width: 16),
-                    ],
+                        const SizedBox(width: 6),
+                        Text(
+                          loc.t('create_api_key'),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                      ],
+                    ),
                   ),
                 ),
               ),

@@ -42,6 +42,7 @@ class AppStatusChip extends StatelessWidget {
           fontSize: 11,
           fontWeight: FontWeight.w600,
           color: textColor,
+          letterSpacing: 0.2,
         ),
       ),
     );
@@ -88,6 +89,7 @@ class AppTypeChip extends StatelessWidget {
               fontSize: 11,
               fontWeight: FontWeight.w600,
               color: chipColor,
+              letterSpacing: 0.2,
             ),
           ),
         ],
@@ -120,9 +122,7 @@ class AppInfoChip extends StatelessWidget {
         vertical: 4,
       ),
       decoration: BoxDecoration(
-        color: colorScheme.brightness == Brightness.light
-            ? const Color(0xFFE5E5EA).withValues(alpha: 0.7)
-            : const Color(0xFF3A3A3C).withValues(alpha: 0.7),
+        color: AppTheme.getSurfaceHigh(colorScheme).withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(AppTheme.radiusXLarge),
       ),
       child: Row(

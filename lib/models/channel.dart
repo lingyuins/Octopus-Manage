@@ -1,3 +1,5 @@
+import 'package:octopusmanage/utils/parse_utils.dart';
+
 class Channel {
   final int id;
   final String name;
@@ -37,9 +39,9 @@ class Channel {
 
   factory Channel.fromJson(Map<String, dynamic> json) {
     return Channel(
-      id: json['id'] as int? ?? 0,
+      id: parseInt(json['id']),
       name: json['name'] as String? ?? '',
-      type: json['type'] as int? ?? 1,
+      type: json['type'] as int? ?? 0,
       enabled: json['enabled'] as bool? ?? true,
       baseUrls:
           (json['base_urls'] as List?)
@@ -149,8 +151,8 @@ class ChannelKey {
 
   factory ChannelKey.fromJson(Map<String, dynamic> json) {
     return ChannelKey(
-      id: json['id'] as int? ?? 0,
-      channelId: json['channel_id'] as int? ?? 0,
+      id: parseInt(json['id']),
+      channelId: parseInt(json['channel_id']),
       enabled: json['enabled'] as bool? ?? true,
       channelKey: json['channel_key'] as String? ?? '',
       statusCode: json['status_code'] as int? ?? 0,
@@ -193,7 +195,7 @@ class StatsChannel {
 
   factory StatsChannel.fromJson(Map<String, dynamic> json) {
     return StatsChannel(
-      channelId: json['channel_id'] as int? ?? 0,
+      channelId: parseInt(json['channel_id']),
       inputToken: json['input_token'] as int? ?? 0,
       outputToken: json['output_token'] as int? ?? 0,
       inputCost: (json['input_cost'] as num?)?.toDouble() ?? 0,
@@ -203,4 +205,15 @@ class StatsChannel {
       requestFailed: json['request_failed'] as int? ?? 0,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'channel_id': channelId,
+    'input_token': inputToken,
+    'output_token': outputToken,
+    'input_cost': inputCost,
+    'output_cost': outputCost,
+    'wait_time': waitTime,
+    'request_success': requestSuccess,
+    'request_failed': requestFailed,
+  };
 }

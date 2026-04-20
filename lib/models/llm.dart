@@ -1,3 +1,5 @@
+import 'package:octopusmanage/utils/parse_utils.dart';
+
 class LLMInfo {
   final String name;
   final double input;
@@ -14,15 +16,35 @@ class LLMInfo {
   });
 
   factory LLMInfo.fromJson(Map<String, dynamic> json) {
-    final price = json['LLMPrice'] as Map<String, dynamic>? ?? json;
+    final price = json['LLMPrice'] as Map<String, dynamic>?;
     return LLMInfo(
       name: json['name'] as String? ?? '',
-      input: (price['input'] as num?)?.toDouble() ?? 0,
-      output: (price['output'] as num?)?.toDouble() ?? 0,
-      cacheRead: (price['cache_read'] as num?)?.toDouble() ?? 0,
-      cacheWrite: (price['cache_write'] as num?)?.toDouble() ?? 0,
+      input:
+          (json['input'] as num?)?.toDouble() ??
+          (price?['input'] as num?)?.toDouble() ??
+          0,
+      output:
+          (json['output'] as num?)?.toDouble() ??
+          (price?['output'] as num?)?.toDouble() ??
+          0,
+      cacheRead:
+          (json['cache_read'] as num?)?.toDouble() ??
+          (price?['cache_read'] as num?)?.toDouble() ??
+          0,
+      cacheWrite:
+          (json['cache_write'] as num?)?.toDouble() ??
+          (price?['cache_write'] as num?)?.toDouble() ??
+          0,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'input': input,
+    'output': output,
+    'cache_read': cacheRead,
+    'cache_write': cacheWrite,
+  };
 }
 
 class LLMChannel {
@@ -42,8 +64,15 @@ class LLMChannel {
     return LLMChannel(
       name: json['name'] as String? ?? '',
       enabled: json['enabled'] as bool? ?? true,
-      channelId: json['channel_id'] as int? ?? 0,
+      channelId: parseInt(json['channel_id']),
       channelName: json['channel_name'] as String? ?? '',
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'enabled': enabled,
+    'channel_id': channelId,
+    'channel_name': channelName,
+  };
 }

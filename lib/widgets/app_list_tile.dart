@@ -48,7 +48,7 @@ class AppListTile extends StatelessWidget {
         color: backgroundColor ?? AppTheme.getSurfaceLow(colorScheme),
         borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
         border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.15),
+          color: colorScheme.outlineVariant.withValues(alpha: 0.12),
         ),
       ),
       child: Material(
@@ -261,7 +261,7 @@ class AppSettingItem extends StatelessWidget {
                 color: colorScheme.onSurfaceVariant,
               ),
             ),
-          if (valueWidget != null) valueWidget!,
+          ?valueWidget,
           if (showArrow) ...[
             const SizedBox(width: AppTheme.spacingSm),
             Icon(
@@ -281,6 +281,7 @@ class AppExpandableControl extends StatelessWidget {
   final int collapsedCount;
   final int totalCount;
   final VoidCallback onToggle;
+  final String? collapseText;
 
   const AppExpandableControl({
     super.key,
@@ -288,6 +289,7 @@ class AppExpandableControl extends StatelessWidget {
     required this.collapsedCount,
     required this.totalCount,
     required this.onToggle,
+    this.collapseText,
   });
 
   @override
@@ -313,12 +315,13 @@ class AppExpandableControl extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              isExpanded ? '收起' : '+$remaining more',
+              isExpanded ? (collapseText ?? 'Collapse') : '+$remaining more',
               style: theme.textTheme.footnote?.copyWith(
                 fontWeight: FontWeight.w500,
                 color: colorScheme.primary,
               ),
             ),
+            const SizedBox(width: 2),
             Icon(
               isExpanded
                   ? CupertinoIcons.chevron_up

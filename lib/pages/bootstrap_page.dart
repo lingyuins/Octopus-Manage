@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:octopusmanage/providers/app_provider.dart';
 import 'package:octopusmanage/theme/app_theme.dart';
 import 'package:octopusmanage/widgets/app_card.dart';
+import 'package:octopusmanage/widgets/app_error_dialog.dart';
 import 'package:provider/provider.dart';
 
 class BootstrapPage extends StatefulWidget {
@@ -30,17 +31,29 @@ class _BootstrapPageState extends State<BootstrapPage> {
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text;
+    final confirm = _confirmPasswordController.text;
+    final loc = context.read<AppProvider>().loc;
+
+    if (username.isEmpty || password.isEmpty) {
+      showErrorDialog(context, loc.t('required'));
+      return;
+    }
+    if (password.length < 12) {
+      showErrorDialog(context, loc.t('password_too_short'));
+      return;
+    }
+    if (password != confirm) {
+      showErrorDialog(context, loc.t('password_mismatch'));
+      return;
+    }
 
     setState(() => _loading = true);
     try {
       final provider = context.read<AppProvider>();
-      final success = await provider.createAdmin(
-        _usernameController.text.trim(),
-        _passwordController.text,
-      );
+      final success = await provider.createAdmin(username, password);
       if (success && mounted) {
-        final loc = provider.loc;
         showCupertinoDialog(
           context: context,
           builder: (_) => CupertinoAlertDialog(
@@ -54,7 +67,6 @@ class _BootstrapPageState extends State<BootstrapPage> {
           ),
         );
       } else if (!success && mounted) {
-        final loc = provider.loc;
         showCupertinoDialog(
           context: context,
           builder: (_) => CupertinoAlertDialog(
@@ -70,29 +82,60 @@ class _BootstrapPageState extends State<BootstrapPage> {
       }
     } catch (e) {
       if (mounted) {
-        showCupertinoDialog(
-          context: context,
-          builder: (_) => CupertinoAlertDialog(
-            title: Text(e.toString()),
-            actions: [
-              CupertinoDialogAction(
-                child: Text('OK'),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ],
-          ),
-        );
+        showErrorDialog(context, e.toString());
       }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String placeholder,
+    required IconData icon,
+    required ColorScheme colorScheme,
+    bool obscureText = false,
+    Widget? suffix,
+    String? hint,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CupertinoTextField(
+          controller: controller,
+          placeholder: placeholder,
+          obscureText: obscureText,
+          prefix: Padding(
+            padding: const EdgeInsets.only(left: 12),
+            child: Icon(icon, size: 18, color: colorScheme.onSurfaceVariant),
+          ),
+          suffix: suffix,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppTheme.getInputBackground(colorScheme),
+            borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+          ),
+        ),
+        if (hint != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 4),
+            child: Text(
+              hint,
+              style: TextStyle(
+                fontSize: 12,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final loc = context.watch<AppProvider>().loc;
     final colorScheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xFF007AFF),
+      seedColor: AppTheme.colorBlue,
       brightness: Brightness.light,
     );
 
@@ -108,15 +151,15 @@ class _BootstrapPageState extends State<BootstrapPage> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    width: 96,
-                    height: 96,
+                    width: 88,
+                    height: 88,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          colorScheme.primary,
-                          colorScheme.primaryContainer,
+                          AppTheme.colorOrange,
+                          AppTheme.colorOrange.withValues(alpha: 0.7),
                         ],
                       ),
                       borderRadius: BorderRadius.circular(
@@ -124,7 +167,7 @@ class _BootstrapPageState extends State<BootstrapPage> {
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: colorScheme.primary.withValues(alpha: 0.3),
+                          color: AppTheme.colorOrange.withValues(alpha: 0.25),
                           offset: const Offset(0, 8),
                           blurRadius: 24,
                         ),
@@ -132,8 +175,8 @@ class _BootstrapPageState extends State<BootstrapPage> {
                     ),
                     child: Icon(
                       CupertinoIcons.shield,
-                      size: 44,
-                      color: colorScheme.onPrimary,
+                      size: 40,
+                      color: Colors.white,
                     ),
                   ),
                   const SizedBox(height: AppTheme.spacingLg),
@@ -152,47 +195,29 @@ class _BootstrapPageState extends State<BootstrapPage> {
                     style: TextStyle(
                       fontSize: 17,
                       color: colorScheme.onSurfaceVariant,
+                      letterSpacing: -0.4,
                     ),
                   ),
                   const SizedBox(height: AppTheme.spacingXxl),
                   AppCard(
                     padding: const EdgeInsets.all(AppTheme.spacingXl),
+                    elevated: true,
                     child: Column(
                       children: [
-                        CupertinoTextField(
+                        _buildTextField(
                           controller: _usernameController,
                           placeholder: loc.t('username'),
-                          prefix: Padding(
-                            padding: const EdgeInsets.only(left: 12),
-                            child: Icon(
-                              CupertinoIcons.person,
-                              size: 18,
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: colorScheme.brightness == Brightness.light
-                                ? const Color(0xFFE5E5EA)
-                                : const Color(0xFF3A3A3C),
-                            borderRadius: BorderRadius.circular(
-                              AppTheme.radiusSmall,
-                            ),
-                          ),
+                          icon: CupertinoIcons.person,
+                          colorScheme: colorScheme,
                         ),
                         const SizedBox(height: AppTheme.spacingMd),
-                        CupertinoTextField(
+                        _buildTextField(
                           controller: _passwordController,
                           placeholder: loc.t('password'),
+                          icon: CupertinoIcons.lock,
+                          colorScheme: colorScheme,
                           obscureText: _obscurePassword,
-                          prefix: Padding(
-                            padding: const EdgeInsets.only(left: 12),
-                            child: Icon(
-                              CupertinoIcons.lock,
-                              size: 18,
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                          ),
+                          hint: loc.t('password_min_length'),
                           suffix: GestureDetector(
                             onTap: () => setState(
                               () => _obscurePassword = !_obscurePassword,
@@ -208,42 +233,14 @@ class _BootstrapPageState extends State<BootstrapPage> {
                               ),
                             ),
                           ),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: colorScheme.brightness == Brightness.light
-                                ? const Color(0xFFE5E5EA)
-                                : const Color(0xFF3A3A3C),
-                            borderRadius: BorderRadius.circular(
-                              AppTheme.radiusSmall,
-                            ),
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4, left: 4),
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              loc.t('password_min_length'),
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ),
                         ),
                         const SizedBox(height: AppTheme.spacingMd),
-                        CupertinoTextField(
+                        _buildTextField(
                           controller: _confirmPasswordController,
                           placeholder: loc.t('confirm_password'),
+                          icon: CupertinoIcons.lock,
+                          colorScheme: colorScheme,
                           obscureText: _obscureConfirm,
-                          prefix: Padding(
-                            padding: const EdgeInsets.only(left: 12),
-                            child: Icon(
-                              CupertinoIcons.lock,
-                              size: 18,
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                          ),
                           suffix: GestureDetector(
                             onTap: () => setState(
                               () => _obscureConfirm = !_obscureConfirm,
@@ -257,15 +254,6 @@ class _BootstrapPageState extends State<BootstrapPage> {
                                 size: 18,
                                 color: colorScheme.onSurfaceVariant,
                               ),
-                            ),
-                          ),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: colorScheme.brightness == Brightness.light
-                                ? const Color(0xFFE5E5EA)
-                                : const Color(0xFF3A3A3C),
-                            borderRadius: BorderRadius.circular(
-                              AppTheme.radiusSmall,
                             ),
                           ),
                         ),

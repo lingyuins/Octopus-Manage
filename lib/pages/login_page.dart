@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:octopusmanage/providers/app_provider.dart';
 import 'package:octopusmanage/theme/app_theme.dart';
 import 'package:octopusmanage/widgets/app_card.dart';
+import 'package:octopusmanage/widgets/app_error_dialog.dart';
 import 'package:provider/provider.dart';
 
 class LoginPage extends StatefulWidget {
@@ -39,17 +40,24 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
+    final url = _urlController.text.trim();
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text;
+    if (url.isEmpty || username.isEmpty || password.isEmpty) {
+      final loc = context.read<AppProvider>().loc;
+      showErrorDialog(context, loc.t('required'));
+      return;
+    }
 
     setState(() => _loading = true);
     try {
       final provider = context.read<AppProvider>();
-      await provider.setBaseUrl(_urlController.text.trim());
+      await provider.setBaseUrl(url);
       await provider.checkBootstrapStatus();
       if (!provider.needsBootstrap) {
         final success = await provider.login(
-          _usernameController.text.trim(),
-          _passwordController.text,
+          username,
+          password,
           rememberMe: _rememberMe,
         );
         if (!success && mounted) {
@@ -70,18 +78,7 @@ class _LoginPageState extends State<LoginPage> {
       }
     } catch (e) {
       if (mounted) {
-        showCupertinoDialog(
-          context: context,
-          builder: (_) => CupertinoAlertDialog(
-            title: Text(e.toString()),
-            actions: [
-              CupertinoDialogAction(
-                child: Text('OK'),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ],
-          ),
-        );
+        showErrorDialog(context, e.toString());
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -92,7 +89,7 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     final loc = context.watch<AppProvider>().loc;
     final colorScheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xFF007AFF),
+      seedColor: AppTheme.colorBlue,
       brightness: Brightness.light,
     );
 
@@ -107,16 +104,17 @@ class _LoginPageState extends State<LoginPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // App Icon
                   Container(
-                    width: 96,
-                    height: 96,
+                    width: 88,
+                    height: 88,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          colorScheme.primary,
-                          colorScheme.primaryContainer,
+                          AppTheme.colorBlue,
+                          AppTheme.colorBlue.withValues(alpha: 0.7),
                         ],
                       ),
                       borderRadius: BorderRadius.circular(
@@ -124,7 +122,7 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: colorScheme.primary.withValues(alpha: 0.3),
+                          color: AppTheme.colorBlue.withValues(alpha: 0.25),
                           offset: const Offset(0, 8),
                           blurRadius: 24,
                         ),
@@ -132,8 +130,8 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                     child: Icon(
                       CupertinoIcons.settings,
-                      size: 44,
-                      color: colorScheme.onPrimary,
+                      size: 40,
+                      color: Colors.white,
                     ),
                   ),
                   const SizedBox(height: AppTheme.spacingLg),
@@ -152,69 +150,35 @@ class _LoginPageState extends State<LoginPage> {
                     style: TextStyle(
                       fontSize: 17,
                       color: colorScheme.onSurfaceVariant,
+                      letterSpacing: -0.4,
                     ),
                   ),
                   const SizedBox(height: AppTheme.spacingXxl),
                   AppCard(
                     padding: const EdgeInsets.all(AppTheme.spacingXl),
+                    elevated: true,
                     child: Column(
                       children: [
-                        CupertinoTextField(
+                        _buildTextField(
                           controller: _urlController,
                           placeholder: loc.t('server_url'),
-                          prefix: Padding(
-                            padding: const EdgeInsets.only(left: 12),
-                            child: Icon(
-                              CupertinoIcons.globe,
-                              size: 18,
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: colorScheme.brightness == Brightness.light
-                                ? const Color(0xFFE5E5EA)
-                                : const Color(0xFF3A3A3C),
-                            borderRadius: BorderRadius.circular(
-                              AppTheme.radiusSmall,
-                            ),
-                          ),
+                          icon: CupertinoIcons.globe,
+                          colorScheme: colorScheme,
                         ),
                         const SizedBox(height: AppTheme.spacingMd),
-                        CupertinoTextField(
+                        _buildTextField(
                           controller: _usernameController,
                           placeholder: loc.t('username'),
-                          prefix: Padding(
-                            padding: const EdgeInsets.only(left: 12),
-                            child: Icon(
-                              CupertinoIcons.person,
-                              size: 18,
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: colorScheme.brightness == Brightness.light
-                                ? const Color(0xFFE5E5EA)
-                                : const Color(0xFF3A3A3C),
-                            borderRadius: BorderRadius.circular(
-                              AppTheme.radiusSmall,
-                            ),
-                          ),
+                          icon: CupertinoIcons.person,
+                          colorScheme: colorScheme,
                         ),
                         const SizedBox(height: AppTheme.spacingMd),
-                        CupertinoTextField(
+                        _buildTextField(
                           controller: _passwordController,
                           placeholder: loc.t('password'),
+                          icon: CupertinoIcons.lock,
+                          colorScheme: colorScheme,
                           obscureText: _obscurePassword,
-                          prefix: Padding(
-                            padding: const EdgeInsets.only(left: 12),
-                            child: Icon(
-                              CupertinoIcons.lock,
-                              size: 18,
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                          ),
                           suffix: GestureDetector(
                             onTap: () => setState(
                               () => _obscurePassword = !_obscurePassword,
@@ -228,15 +192,6 @@ class _LoginPageState extends State<LoginPage> {
                                 size: 18,
                                 color: colorScheme.onSurfaceVariant,
                               ),
-                            ),
-                          ),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: colorScheme.brightness == Brightness.light
-                                ? const Color(0xFFE5E5EA)
-                                : const Color(0xFF3A3A3C),
-                            borderRadius: BorderRadius.circular(
-                              AppTheme.radiusSmall,
                             ),
                           ),
                         ),
@@ -287,6 +242,31 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String placeholder,
+    required IconData icon,
+    required ColorScheme colorScheme,
+    bool obscureText = false,
+    Widget? suffix,
+  }) {
+    return CupertinoTextField(
+      controller: controller,
+      placeholder: placeholder,
+      obscureText: obscureText,
+      prefix: Padding(
+        padding: const EdgeInsets.only(left: 12),
+        child: Icon(icon, size: 18, color: colorScheme.onSurfaceVariant),
+      ),
+      suffix: suffix,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.getInputBackground(colorScheme),
+        borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
       ),
     );
   }

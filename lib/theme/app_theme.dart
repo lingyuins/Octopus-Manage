@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class AppTheme {
+  // --- Radius ---
   static const double radiusNone = 0.0;
   static const double radiusSmall = 8.0;
   static const double radiusMedium = 12.0;
@@ -10,6 +11,7 @@ class AppTheme {
   static const double radiusXLarge = 22.0;
   static const double radiusXXLarge = 28.0;
 
+  // --- Spacing ---
   static const double spacingXs = 4.0;
   static const double spacingSm = 8.0;
   static const double spacingMd = 12.0;
@@ -17,11 +19,25 @@ class AppTheme {
   static const double spacingXl = 20.0;
   static const double spacingXxl = 28.0;
 
+  // --- Animation ---
+  static const Duration animFast = Duration(milliseconds: 150);
+  static const Duration animNormal = Duration(milliseconds: 250);
+  static const Duration animSlow = Duration(milliseconds: 400);
+  static const Curve animCurve = Curves.easeOutCubic;
+
+  // --- Shadows ---
   static List<BoxShadow> getShadow(ColorScheme colorScheme) => [
     BoxShadow(
       color: colorScheme.shadow.withValues(alpha: 0.04),
       offset: const Offset(0, 1),
       blurRadius: 3,
+    ),
+  ];
+  static List<BoxShadow> getShadowMedium(ColorScheme colorScheme) => [
+    BoxShadow(
+      color: colorScheme.shadow.withValues(alpha: 0.06),
+      offset: const Offset(0, 2),
+      blurRadius: 8,
     ),
   ];
   static List<BoxShadow> getShadowLarge(ColorScheme colorScheme) => [
@@ -32,6 +48,18 @@ class AppTheme {
     ),
   ];
 
+  // --- Semantic Colors ---
+  static const Color colorBlue = Color(0xFF007AFF);
+  static const Color colorGreen = Color(0xFF34C759);
+  static const Color colorOrange = Color(0xFFFF9500);
+  static const Color colorPurple = Color(0xFFAF52DE);
+  static const Color colorRed = Color(0xFFFF3B30);
+  static const Color colorTeal = Color(0xFF5AC8FA);
+  static const Color colorIndigo = Color(0xFF5856D6);
+  static const Color colorGray = Color(0xFF8E8E93);
+  static const Color colorPink = Color(0xFFFF2D55);
+
+  // --- Surface Hierarchy ---
   static Color getSurfaceLowest(ColorScheme cs) =>
       cs.brightness == Brightness.light
       ? const Color(0xFFF2F2F7)
@@ -61,6 +89,16 @@ class AppTheme {
 
   static Color getGroupedBackground(ColorScheme cs) => getSurfaceLowest(cs);
   static Color getGroupedCellBackground(ColorScheme cs) => getSurfaceLow(cs);
+
+  // --- Input Background ---
+  static Color getInputBackground(ColorScheme cs) =>
+      cs.brightness == Brightness.light
+      ? const Color(0xFFE5E5EA)
+      : const Color(0xFF3A3A3C);
+
+  // --- Accent Background Helpers ---
+  static Color withAccent(Color accent, double alpha) =>
+      accent.withValues(alpha: alpha);
 
   static ThemeData getTheme(ColorScheme colorScheme) {
     return ThemeData(
@@ -103,9 +141,7 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: colorScheme.brightness == Brightness.light
-            ? const Color(0xFFE5E5EA)
-            : const Color(0xFF3A3A3C),
+        fillColor: getInputBackground(colorScheme),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(radiusMedium),
           borderSide: BorderSide.none,

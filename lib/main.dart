@@ -22,7 +22,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = context.watch<AppProvider>();
     final colorScheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xFF007AFF),
+      seedColor: AppTheme.colorBlue,
       brightness: Brightness.light,
     );
 
@@ -69,7 +69,7 @@ class _AppShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = context.watch<AppProvider>();
     final colorScheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xFF007AFF),
+      seedColor: AppTheme.colorBlue,
       brightness: Brightness.light,
     );
 
@@ -96,7 +96,7 @@ class _AppShell extends StatelessWidget {
             color: colorScheme.errorContainer,
             child: Row(
               children: [
-                Icon(Icons.error_outline, color: colorScheme.error, size: 18),
+                Icon(CupertinoIcons.exclamationmark_circle, color: colorScheme.error, size: 18),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(

@@ -1,3 +1,5 @@
+import 'package:octopusmanage/utils/parse_utils.dart';
+
 class APIKey {
   final int id;
   final String name;
@@ -19,7 +21,7 @@ class APIKey {
 
   factory APIKey.fromJson(Map<String, dynamic> json) {
     return APIKey(
-      id: json['id'] as int? ?? 0,
+      id: parseInt(json['id']),
       name: json['name'] as String? ?? '',
       apiKey: json['api_key'] as String? ?? '',
       enabled: json['enabled'] as bool? ?? true,
@@ -35,8 +37,8 @@ class APIKey {
       'name': name,
       if (apiKey.isNotEmpty) 'api_key': apiKey,
       'enabled': enabled,
-      if (expireAt > 0) 'expire_at': expireAt,
-      if (maxCost > 0) 'max_cost': maxCost,
+      'expire_at': expireAt,
+      'max_cost': maxCost,
       if (supportedModels.isNotEmpty) 'supported_models': supportedModels,
     };
   }
