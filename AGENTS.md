@@ -4,7 +4,7 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 ## Project Overview
 
-Octopus Manager is a Flutter management client for [Octopus](https://github.com/lingyuins/octopus), an LLM API gateway and proxy. It provides a mobile/web UI for administering an Octopus server — managing channels, groups, API keys, viewing dashboards/logs, and configuring settings.
+Octopus Manager is a Flutter management client for [Octopus](https://github.com/lingyuins/octopus), an LLM API gateway and proxy. It provides a mobile/web UI for administering an Octopus server — managing dashboards, channels, groups, model pricing, API keys, logs, and server settings.
 
 ## Build & Run Commands
 
@@ -17,19 +17,19 @@ flutter build apk --release  # Build Android APK
 flutter build web --release  # Build web
 ```
 
-No individual test file runner — `flutter test` runs all tests in `test/`. Tests cover model `toJson`/`fromJson` round-trips only (no widget or integration tests).
+`flutter test` currently runs the suite in `test/widget_test.dart`. Existing coverage is limited to model serialization/null-safety checks; there are no widget or integration tests yet.
 
 ## Architecture
 
-**Single-provider state management**: `AppProvider` (in `lib/providers/`) is the sole `ChangeNotifier`. It manages auth, locale, bootstrap status, and error state. Pages access it via `context.watch<AppProvider>()` and call the API through `provider.api`.
+**Single-provider state management**: `AppProvider` (in `lib/providers/`) is the sole `ChangeNotifier`. It manages auth, locale, bootstrap status, wait-time formatting, dashboard auto-refresh preferences, and error state. Pages access it via `context.watch<AppProvider>()` and call the API through `provider.api`.
 
 **Two-layer API service**:
 - `ApiService` (`lib/services/api_service.dart`) — raw HTTP primitives with Bearer token auth, 15s timeout, automatic 401 logout
-- `OctopusApi` (`lib/services/octopus_api.dart`) — typed wrapper over ApiService, mapping all `/api/v1/` endpoints to model objects
+- `OctopusApi` (`lib/services/octopus_api.dart`) — typed wrapper over ApiService, covering auth, stats, channels, groups, models, API keys, logs, settings, and update endpoints
 
-**App shell flow** (`main.dart`): loading → bootstrap (if fresh server) → login → `HomePage`
+**App shell flow** (`main.dart`): loading → `HomePage` (if token exists) or `LoginPage`; the login flow checks bootstrap status and routes to `BootstrapPage` when the server is uninitialized.
 
-**Navigation**: `CupertinoTabScaffold` with 6 tabs (Dashboard, Channels, Groups, API Keys, Logs, Settings). No router — tab-based navigation only.
+**Navigation**: `CupertinoTabScaffold` with 7 tabs (Dashboard, Channels, Groups, Models, API Keys, Logs, Settings). No router — tab-based navigation only.
 
 ## Key Conventions
 
@@ -39,7 +39,7 @@ No individual test file runner — `flutter test` runs all tests in `test/`. Tes
 - **Color scheme seed**: `Color(0xFF007AFF)` (Apple blue).
 - **Models** use manual `fromJson`/`toJson` (no code-gen). JSON keys are `snake_case` matching the Octopus API. `fromJson` uses `as Type? ?? defaultValue` for null safety.
 - **i18n** is hand-rolled (`lib/l10n/app_localizations.dart`): `AppLocalizations.t(key)` with `_strings` map of key → `{AppLocale.en: ..., AppLocale.zh: ...}`. Not using Flutter's `gen_l10n`.
-- **Persistence**: `SharedPreferences` stores base URL, auth token, locale, and wait time unit.
+- **Persistence**: `SharedPreferences` stores base URL, auth token, locale, wait time unit, dashboard auto-refresh enabled state, and refresh interval.
 
 ## CI/CD
 
