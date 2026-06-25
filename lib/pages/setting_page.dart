@@ -167,7 +167,10 @@ class _SettingPageState extends State<SettingPage> {
   }
 
   bool _isBooleanSetting(String key) =>
-      key == 'relay_log_keep_enabled' || key == 'semantic_cache_enabled';
+      key == 'relay_log_keep_enabled' ||
+      key == 'semantic_cache_enabled' ||
+      key == 'response_filter_enabled' ||
+      key == 'model_normalize_market_dedupe_default';
 
   Future<void> _toggleBoolSetting(Setting setting) async {
     final newValue = setting.value == 'true' ? 'false' : 'true';
@@ -627,6 +630,21 @@ class _SettingPageState extends State<SettingPage> {
         backups = await backupsFuture;
       } catch (_) {}
       if (!mounted) return;
+      // Convert interval_hours to interval string for UI
+      final intervalHours = config['interval_hours'] as int? ?? 6;
+      String interval;
+      if (intervalHours <= 0) {
+        interval = 'disabled';
+      } else if (intervalHours == 1) {
+        interval = 'hourly';
+      } else if (intervalHours == 24) {
+        interval = 'daily';
+      } else if (intervalHours == 168) {
+        interval = 'weekly';
+      } else {
+        interval = 'daily'; // Default to daily for other values
+      }
+      config['interval'] = interval;
       setState(() {
         _webdavConfig = config;
         _webdavBackups = backups;
@@ -640,7 +658,27 @@ class _SettingPageState extends State<SettingPage> {
   Future<void> _saveWebDAVConfig() async {
     try {
       final api = context.read<AppProvider>().api;
-      await api.setWebDAVConfig(_webdavConfig);
+      // Convert interval string to interval_hours for server
+      final config = Map<String, dynamic>.from(_webdavConfig);
+      final interval = (config['interval'] ?? 'disabled').toString();
+      int intervalHours;
+      switch (interval) {
+        case 'hourly':
+          intervalHours = 1;
+          break;
+        case 'daily':
+          intervalHours = 24;
+          break;
+        case 'weekly':
+          intervalHours = 168;
+          break;
+        default:
+          intervalHours = 0; // disabled
+      }
+      config['interval_hours'] = intervalHours;
+      // Remove UI-only field
+      config.remove('interval');
+      await api.setWebDAVConfig(config);
     } catch (e) {
       if (mounted) {
         await showErrorDialog(context, e.toString());
@@ -799,14 +837,21 @@ class _SettingPageState extends State<SettingPage> {
     setState(() => _webauthnLoading = true);
     try {
       final api = context.read<AppProvider>().api;
-      final configFuture = api.getWebAuthnConfig();
+      final settingsFuture = api.getSettings();
       final credsFuture = api.listWebAuthnCredentials();
-      final config = await configFuture;
+      final settings = await settingsFuture;
       List<Map<String, dynamic>> creds = [];
       try {
         creds = await credsFuture;
       } catch (_) {}
       if (!mounted) return;
+      // Build config from settings
+      final settingsByKey = {for (final s in settings) s.key: s.value};
+      final config = {
+        'rp_id': settingsByKey['webauthn_rp_id'] ?? '',
+        'rp_name': settingsByKey['webauthn_rp_name'] ?? 'Octopus',
+        'allowed_origins': settingsByKey['webauthn_origins'] ?? '',
+      };
       setState(() {
         _webauthnConfig = config;
         _webauthnCredentials = creds;
@@ -820,7 +865,16 @@ class _SettingPageState extends State<SettingPage> {
   Future<void> _saveWebAuthnConfig() async {
     try {
       final api = context.read<AppProvider>().api;
-      await api.setWebAuthnConfig(_webauthnConfig);
+      // Map config keys to setting keys
+      final settingKeyMap = {
+        'rp_id': 'webauthn_rp_id',
+        'rp_name': 'webauthn_rp_name',
+        'allowed_origins': 'webauthn_origins',
+      };
+      for (final entry in settingKeyMap.entries) {
+        final value = (_webauthnConfig[entry.key] ?? '').toString();
+        await api.setSetting(entry.value, value);
+      }
     } catch (e) {
       if (mounted) {
         await showErrorDialog(context, e.toString());
@@ -970,14 +1024,32 @@ class _SettingPageState extends State<SettingPage> {
           'setting_semantic_cache_embedding_model',
       'semantic_cache_embedding_api_key':
           'setting_semantic_cache_embedding_api_key',
-      'semantic_cache_similarity_threshold':
-          'setting_semantic_cache_similarity_threshold',
-      'semantic_cache_ttl_seconds':
-          'setting_semantic_cache_ttl_seconds',
+      'semantic_cache_threshold':
+          'setting_semantic_cache_threshold',
+      'semantic_cache_ttl':
+          'setting_semantic_cache_ttl',
       'semantic_cache_max_entries':
           'setting_semantic_cache_max_entries',
       'semantic_cache_embedding_dimensions':
           'setting_semantic_cache_embedding_dimensions',
+      // New setting keys
+      'relay_route_retries': 'setting_relay_route_retries',
+      'relay_log_keep_count': 'setting_relay_log_keep_count',
+      'log_level': 'setting_log_level',
+      'stats_timezone_offset': 'setting_stats_timezone_offset',
+      'response_filter_enabled': 'setting_response_filter_enabled',
+      'response_filter_keywords': 'setting_response_filter_keywords',
+      'response_filter_action': 'setting_response_filter_action',
+      'jwt_default_expiry_minutes': 'setting_jwt_default_expiry_minutes',
+      'jwt_remember_me_expiry_days': 'setting_jwt_remember_me_expiry_days',
+      'login_rate_limit_window': 'setting_login_rate_limit_window',
+      'login_rate_limit_max_failed': 'setting_login_rate_limit_max_failed',
+      'stream_session_ttl_minutes': 'setting_stream_session_ttl_minutes',
+      'stream_session_max_events': 'setting_stream_session_max_events',
+      'stream_session_max_bytes_mb': 'setting_stream_session_max_bytes_mb',
+      'notify_http_timeout_seconds': 'setting_notify_http_timeout_seconds',
+      'site_sync_interval': 'setting_site_sync_interval',
+      'site_checkin_interval': 'setting_site_checkin_interval',
     };
     return loc.t(keyMap[key] ?? key);
   }
@@ -1350,6 +1422,14 @@ class _SettingPageState extends State<SettingPage> {
                   onRestore: (fn) => _restoreWebDAVBackup(fn, loc),
                   onDelete: (fn) => _deleteWebDAVBackup(fn, loc),
                   intervalLabel: _webdavIntervalLabel,
+                  onIncludeStatsChanged: (value) async {
+                    setState(() => _webdavConfig['include_stats'] = value);
+                    await _saveWebDAVConfig();
+                  },
+                  onIncludeLogsChanged: (value) async {
+                    setState(() => _webdavConfig['include_logs'] = value);
+                    await _saveWebDAVConfig();
+                  },
                 ),
               ),
               SliverToBoxAdapter(
@@ -2237,6 +2317,8 @@ class _WebDAVCard extends StatelessWidget {
   final ValueChanged<String> onRestore;
   final ValueChanged<String> onDelete;
   final String Function(String, AppLocalizations) intervalLabel;
+  final ValueChanged<bool> onIncludeStatsChanged;
+  final ValueChanged<bool> onIncludeLogsChanged;
 
   const _WebDAVCard({
     required this.config,
@@ -2255,6 +2337,8 @@ class _WebDAVCard extends StatelessWidget {
     required this.onRestore,
     required this.onDelete,
     required this.intervalLabel,
+    required this.onIncludeStatsChanged,
+    required this.onIncludeLogsChanged,
   });
 
   @override
@@ -2413,6 +2497,18 @@ class _WebDAVCard extends StatelessWidget {
                 }
               }
             },
+          ),
+          const SizedBox(height: AppTheme.spacingSm),
+          _SwitchLine(
+            title: loc.t('include_stats'),
+            value: config['include_stats'] == true,
+            onChanged: onIncludeStatsChanged,
+          ),
+          const SizedBox(height: AppTheme.spacingSm),
+          _SwitchLine(
+            title: loc.t('include_logs'),
+            value: config['include_logs'] == true,
+            onChanged: onIncludeLogsChanged,
           ),
           const SizedBox(height: AppTheme.spacingMd),
           // Test & Backup buttons

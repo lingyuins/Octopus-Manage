@@ -594,14 +594,6 @@ class AppLocalizations {
       AppLocale.en: 'Cache Embedding API Key',
       AppLocale.zh: '缓存 Embedding Key',
     },
-    'setting_semantic_cache_similarity_threshold': {
-      AppLocale.en: 'Cache Similarity Threshold',
-      AppLocale.zh: '缓存相似度阈值',
-    },
-    'setting_semantic_cache_ttl_seconds': {
-      AppLocale.en: 'Cache TTL (sec)',
-      AppLocale.zh: '缓存 TTL (秒)',
-    },
     'setting_semantic_cache_max_entries': {
       AppLocale.en: 'Cache Max Entries',
       AppLocale.zh: '缓存最大条目数',
@@ -637,6 +629,84 @@ class AppLocalizations {
     'setting_ai_route_services': {
       AppLocale.en: 'AI Route Services',
       AppLocale.zh: 'AI Route 服务池',
+    },
+    // New setting labels
+    'setting_relay_route_retries': {
+      AppLocale.en: 'Route Retries',
+      AppLocale.zh: '路由重试次数',
+    },
+    'setting_relay_log_keep_count': {
+      AppLocale.en: 'Log Keep Count',
+      AppLocale.zh: '日志保留条数',
+    },
+    'setting_log_level': {
+      AppLocale.en: 'Log Level',
+      AppLocale.zh: '日志级别',
+    },
+    'setting_stats_timezone_offset': {
+      AppLocale.en: 'Stats Timezone Offset (hours)',
+      AppLocale.zh: '统计时区偏移 (小时)',
+    },
+    'setting_response_filter_enabled': {
+      AppLocale.en: 'Response Filter',
+      AppLocale.zh: '响应过滤',
+    },
+    'setting_response_filter_keywords': {
+      AppLocale.en: 'Filter Keywords',
+      AppLocale.zh: '过滤关键词',
+    },
+    'setting_response_filter_action': {
+      AppLocale.en: 'Filter Action',
+      AppLocale.zh: '过滤动作',
+    },
+    'setting_jwt_default_expiry_minutes': {
+      AppLocale.en: 'JWT Expiry (min)',
+      AppLocale.zh: 'JWT 过期时间 (分钟)',
+    },
+    'setting_jwt_remember_me_expiry_days': {
+      AppLocale.en: 'Remember Me Expiry (days)',
+      AppLocale.zh: '记住我过期时间 (天)',
+    },
+    'setting_login_rate_limit_window': {
+      AppLocale.en: 'Login Rate Limit Window (min)',
+      AppLocale.zh: '登录限流窗口 (分钟)',
+    },
+    'setting_login_rate_limit_max_failed': {
+      AppLocale.en: 'Max Login Failures',
+      AppLocale.zh: '最大登录失败次数',
+    },
+    'setting_stream_session_ttl_minutes': {
+      AppLocale.en: 'Stream Session TTL (min)',
+      AppLocale.zh: '流会话 TTL (分钟)',
+    },
+    'setting_stream_session_max_events': {
+      AppLocale.en: 'Stream Max Events',
+      AppLocale.zh: '流会话最大事件数',
+    },
+    'setting_stream_session_max_bytes_mb': {
+      AppLocale.en: 'Stream Max Size (MB)',
+      AppLocale.zh: '流会话最大大小 (MB)',
+    },
+    'setting_notify_http_timeout_seconds': {
+      AppLocale.en: 'Notify HTTP Timeout (sec)',
+      AppLocale.zh: '通知 HTTP 超时 (秒)',
+    },
+    'setting_site_sync_interval': {
+      AppLocale.en: 'Site Sync Interval (hours)',
+      AppLocale.zh: '站点同步间隔 (小时)',
+    },
+    'setting_site_checkin_interval': {
+      AppLocale.en: 'Site Check-in Interval (hours)',
+      AppLocale.zh: '站点签到间隔 (小时)',
+    },
+    // Semantic cache correct keys
+    'setting_semantic_cache_threshold': {
+      AppLocale.en: 'Similarity Threshold (0-100)',
+      AppLocale.zh: '相似度阈值 (0-100)',
+    },
+    'setting_semantic_cache_ttl': {
+      AppLocale.en: 'Cache TTL (sec)',
+      AppLocale.zh: '缓存 TTL (秒)',
     },
     'not_set': {AppLocale.en: 'Not set', AppLocale.zh: '未设置'},
     'never': {AppLocale.en: 'Never', AppLocale.zh: '从未'},
