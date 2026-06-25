@@ -57,6 +57,7 @@ CLAUDE.md
 .workbuddy/
 
 # Project docs and reports
+docs/
 IMPLEMENTATION_PLAN.md
 code_review_final_report.md
 server_client_diff_report*.md
