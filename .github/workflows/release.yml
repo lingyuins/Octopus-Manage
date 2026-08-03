@@ -35,11 +35,13 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
-          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_PASSWORD" ] || [ -z "$KEY_ALIAS" ]; then
-            echo "❌ ERROR: missing one of KEYSTORE_BASE64/KEYSTORE_PASSWORD/KEY_PASSWORD/KEY_ALIAS in repo Secrets"
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_PASSWORD" ] ; then
+            echo "❌ ERROR: missing one of KEYSTORE_BASE64/KEYSTORE_PASSWORD/KEY_PASSWORD in repo Secrets"
             echo "Configure at: https://github.com/${{ github.repository }}/settings/secrets/actions"
             exit 1
           fi
+          # KEY_ALIAS 可选，缺省为 release（与 keystore 内 alias 一致）
+          KEY_ALIAS="${KEY_ALIAS:-release}"
           mkdir -p android/app
           echo "$KEYSTORE_BASE64" | base64 -d > android/app/release.jks
           if [ ! -s android/app/release.jks ]; then
@@ -75,7 +77,7 @@ jobs:
           $APKSIGNER verify --print-certs "$APK" 2>&1 | tee /tmp/apk-cert.txt
           echo
           echo "=== 3. SHA1 comparison ==="
-          KEYSTORE_SHA1=$(keytool -list -v -keystore android/app/release.jks -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" 2>/dev/null | grep "SHA1:" | head -1 | awk '{print $2}' | tr -d : | tr 'A-Z' 'a-z')
+          KEYSTORE_SHA1=$(keytool -list -v -keystore android/app/release.jks -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" 2>/dev/null | grep -i "SHA1:" | head -1 | sed -E "s/.*SHA1:[^0-9A-Fa-f]*([0-9A-Fa-f:]+).*/\1/" | tr -d : | tr "A-Z" "a-z")
           # apksigner prints: "SHA-1 digest: <hex>" or sometimes "Signer #1 certificate DN: ..."
           APK_SHA1=$($APKSIGNER verify --print-certs "$APK" 2>&1 | grep -oE "SHA-1 digest: [a-f0-9:]+" | head -1 | awk '{print $3}' | tr -d : | tr 'A-Z' 'a-z')
           if [ -z "$APK_SHA1" ]; then
