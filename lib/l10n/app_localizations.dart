@@ -235,6 +235,7 @@ class AppLocalizations {
     'channel_proxy': {AppLocale.en: 'Channel Proxy', AppLocale.zh: '渠道代理'},
     'param_override': {AppLocale.en: 'Param Override', AppLocale.zh: '参数覆盖'},
     'custom_headers': {AppLocale.en: 'Custom Headers', AppLocale.zh: '自定义请求头'},
+    'custom_header_ops': {AppLocale.en: 'Header Override Ops', AppLocale.zh: '请求头改写规则'},
     'auto_group': {AppLocale.en: 'Auto Group', AppLocale.zh: '自动分组'},
     'auto_group_none': {AppLocale.en: 'Disabled', AppLocale.zh: '关闭'},
     'auto_group_fuzzy': {AppLocale.en: 'Fuzzy', AppLocale.zh: '模糊匹配'},

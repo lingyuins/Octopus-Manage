@@ -475,6 +475,7 @@ class _ChannelEditorSheetState extends State<_ChannelEditorSheet> {
   late List<BaseUrl> _baseUrls;
   late List<ChannelKey> _keys;
   late List<CustomHeader> _headers;
+  late List<CustomHeaderOp> _headerOps;
   late int _selectedType;
   late int _autoGroup;
   late bool _enabled;
@@ -528,6 +529,9 @@ class _ChannelEditorSheetState extends State<_ChannelEditorSheet> {
               )
               .toList()
         : [];
+    _headerOps = existing?.customHeaderOps != null
+        ? List<CustomHeaderOp>.from(existing!.customHeaderOps)
+        : <CustomHeaderOp>[];
     _selectedType = existing?.type ?? 0;
     _autoGroup = existing?.autoGroup ?? 0;
     _enabled = existing?.enabled ?? true;
@@ -586,6 +590,20 @@ class _ChannelEditorSheetState extends State<_ChannelEditorSheet> {
             (item) => CustomHeader(
               headerKey: item.headerKey.trim(),
               headerValue: item.headerValue.trim(),
+            ),
+          )
+          .toList(),
+      customHeaderOps: _headerOps
+          .where(
+            (item) => item.name.trim().isNotEmpty,
+          )
+          .map(
+            (item) => CustomHeaderOp(
+              op: item.op,
+              name: item.name.trim(),
+              value: item.value?.trim().isEmpty == true ? null : item.value?.trim(),
+              to: item.to?.trim().isEmpty == true ? null : item.to?.trim(),
+              from: item.from?.trim().isEmpty == true ? null : item.from?.trim(),
             ),
           )
           .toList(),
@@ -708,6 +726,21 @@ class _ChannelEditorSheetState extends State<_ChannelEditorSheet> {
 
   void _updateHeader(int index, CustomHeader value) {
     setState(() => _headers[index] = value);
+  }
+
+  void _updateHeaderOp(int index, CustomHeaderOp value) {
+    setState(() => _headerOps[index] = value);
+  }
+
+  HeaderOpType _headerOpTypeFromIndex(int index) {
+    if (index < 0 || index >= HeaderOpType.values.length) {
+      return HeaderOpType.set;
+    }
+    return HeaderOpType.values[index];
+  }
+
+  int _headerOpTypeIndex(HeaderOpType op) {
+    return HeaderOpType.values.indexOf(op);
   }
 
   @override
@@ -962,6 +995,39 @@ class _ChannelEditorSheetState extends State<_ChannelEditorSheet> {
                         onChanged: (value) => _updateHeader(index, value),
                         onRemove: () =>
                             setState(() => _headers.removeAt(index)),
+                      );
+                    }),
+                    const SizedBox(height: AppTheme.spacingLg),
+                    _SectionTitle(
+                      title: loc.t('custom_header_ops'),
+                      actionLabel: loc.t('add'),
+                      onAction: () => setState(
+                        () => _headerOps.add(
+                          const CustomHeaderOp(
+                            op: HeaderOpType.set,
+                            name: '',
+                            value: '',
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (_headerOps.isEmpty)
+                      Text(
+                        loc.t('empty'),
+                        style: theme.textTheme.caption?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ...List.generate(_headerOps.length, (index) {
+                      final item = _headerOps[index];
+                      return _HeaderOpEditor(
+                        key: ValueKey('header-op-$index'),
+                        index: index,
+                        value: item,
+                        opTypeIndex: _headerOpTypeIndex(item.op),
+                        onChanged: (value) => _updateHeaderOp(index, value),
+                        onRemove: () =>
+                            setState(() => _headerOps.removeAt(index)),
                       );
                     }),
                   ],
@@ -1427,6 +1493,180 @@ class _HeaderEditorState extends State<_HeaderEditor> {
             placeholder: 'Header-Value',
             onChanged: (next) => _emit(headerValue: next),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeaderOpEditor extends StatefulWidget {
+  final int index;
+  final CustomHeaderOp value;
+  final int opTypeIndex;
+  final ValueChanged<CustomHeaderOp> onChanged;
+  final VoidCallback onRemove;
+
+  const _HeaderOpEditor({
+    super.key,
+    required this.index,
+    required this.value,
+    required this.opTypeIndex,
+    required this.onChanged,
+    required this.onRemove,
+  });
+
+  @override
+  State<_HeaderOpEditor> createState() => _HeaderOpEditorState();
+}
+
+class _HeaderOpEditorState extends State<_HeaderOpEditor> {
+  late final TextEditingController _nameCtl;
+  late final TextEditingController _valueCtl;
+  late final TextEditingController _toCtl;
+  late final TextEditingController _fromCtl;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameCtl = TextEditingController(text: widget.value.name);
+    _valueCtl = TextEditingController(text: widget.value.value ?? '');
+    _toCtl = TextEditingController(text: widget.value.to ?? '');
+    _fromCtl = TextEditingController(text: widget.value.from ?? '');
+  }
+
+  @override
+  void didUpdateWidget(covariant _HeaderOpEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value.name != widget.value.name) {
+      _syncEditorController(_nameCtl, widget.value.name);
+    }
+    if (oldWidget.value.value != widget.value.value) {
+      _syncEditorController(_valueCtl, widget.value.value ?? '');
+    }
+    if (oldWidget.value.to != widget.value.to) {
+      _syncEditorController(_toCtl, widget.value.to ?? '');
+    }
+    if (oldWidget.value.from != widget.value.from) {
+      _syncEditorController(_fromCtl, widget.value.from ?? '');
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameCtl.dispose();
+    _valueCtl.dispose();
+    _toCtl.dispose();
+    _fromCtl.dispose();
+    super.dispose();
+  }
+
+  void _emit({
+    HeaderOpType? op,
+    String? name,
+    String? value,
+    String? to,
+    String? from,
+  }) {
+    widget.onChanged(
+      widget.value.copyWith(
+        op: op,
+        name: name,
+        value: value,
+        to: to,
+        from: from,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final opType = widget.value.op;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppTheme.spacingMd),
+      padding: const EdgeInsets.all(AppTheme.spacingMd),
+      decoration: BoxDecoration(
+        color: AppTheme.getSurfaceLow(colorScheme),
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '#${widget.index + 1} ${opType.name}',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline, size: 20),
+                color: colorScheme.error,
+                onPressed: widget.onRemove,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppTheme.spacingSm),
+          DropdownButtonFormField<int>(
+            value: widget.opTypeIndex,
+            decoration: const InputDecoration(
+              labelText: 'Op',
+              border: OutlineInputBorder(),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 8,
+              ),
+            ),
+            items: HeaderOpType.values
+                .map(
+                  (e) => DropdownMenuItem(
+                    value: HeaderOpType.values.indexOf(e),
+                    child: Text(e.name),
+                  ),
+                )
+                .toList(),
+            onChanged: (idx) {
+              if (idx == null) return;
+              _emit(op: HeaderOpType.values[idx]);
+            },
+          ),
+          const SizedBox(height: AppTheme.spacingSm),
+          _SheetField(
+            controller: _nameCtl,
+            placeholder: 'Header-Name (e.g. User-Agent)',
+            onChanged: (next) => _emit(name: next),
+          ),
+          if (opType == HeaderOpType.set || opType == HeaderOpType.add) ...[
+            const SizedBox(height: AppTheme.spacingSm),
+            _SheetField(
+              controller: _valueCtl,
+              placeholder: 'Header-Value',
+              onChanged: (next) => _emit(value: next),
+            ),
+          ],
+          if (opType == HeaderOpType.rename) ...[
+            const SizedBox(height: AppTheme.spacingSm),
+            _SheetField(
+              controller: _toCtl,
+              placeholder: 'Rename to (new header name)',
+              onChanged: (next) => _emit(to: next),
+            ),
+          ],
+          if (opType == HeaderOpType.copy) ...[
+            const SizedBox(height: AppTheme.spacingSm),
+            _SheetField(
+              controller: _fromCtl,
+              placeholder: 'Copy from (source header name)',
+              onChanged: (next) => _emit(from: next),
+            ),
+          ],
         ],
       ),
     );

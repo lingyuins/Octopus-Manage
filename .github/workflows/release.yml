@@ -11,8 +11,6 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,58 +24,70 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Verify installation
-        run: flutter doctor -v
-
       - name: Extract version
         id: version
         run: echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
 
-      - name: Setup signing keystore
+      - name: Setup signing keystore (Secrets only)
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
-          # Prefer Secrets if configured; fall back to embedded keystore
-          if [ -z "$KEYSTORE_BASE64" ]; then
-            echo "⚠️  No KEYSTORE_BASE64 secret found, using embedded keystore"
-            cat <<'KEYSTORE_EOF' > /tmp/release.jks.b64
-          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
-          KEYSTORE_EOF
-            base64 -d /tmp/release.jks.b64 > android/app/release.jks
-            KEYSTORE_PASSWORD_VAL="Octopus2024!"
-            KEY_PASSWORD_VAL="Octopus2024!"
-          else
-            echo "✅ Using keystore from Secrets"
-            echo "$KEYSTORE_BASE64" | base64 -d > android/app/release.jks
-            KEYSTORE_PASSWORD_VAL="$KEYSTORE_PASSWORD"
-            KEY_PASSWORD_VAL="$KEY_PASSWORD"
-          fi
-
-          # Validate keystore file
-          if [ ! -s android/app/release.jks ]; then
-            echo "❌ ERROR: release.jks is empty or missing!"
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_PASSWORD" ] || [ -z "$KEY_ALIAS" ]; then
+            echo "❌ ERROR: missing one of KEYSTORE_BASE64/KEYSTORE_PASSWORD/KEY_PASSWORD/KEY_ALIAS in repo Secrets"
+            echo "Configure at: https://github.com/${{ github.repository }}/settings/secrets/actions"
             exit 1
           fi
-          echo "✅ Keystore size: $(wc -c < android/app/release.jks) bytes"
-
-          # Write key.properties (use printf to avoid shell expansion issues)
-          printf 'storePassword=%s\nkeyAlias=release\nkeyPassword=%s\nstoreFile=release.jks\n' \
-            "$KEYSTORE_PASSWORD_VAL" "$KEY_PASSWORD_VAL" > android/key.properties
-
-          echo "✅ key.properties created"
-          cat android/key.properties | sed 's/=.*/=***/'
+          mkdir -p android/app
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/release.jks
+          if [ ! -s android/app/release.jks ]; then
+            echo "❌ ERROR: release.jks is empty after decode"
+            exit 1
+          fi
+          printf 'storePassword=%s\nkeyAlias=%s\nkeyPassword=%s\nstoreFile=release.jks\n' \
+            "$KEYSTORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > android/key.properties
+          chmod 600 android/app/release.jks android/key.properties
+          echo "✅ Keystore ready, alias=$KEY_ALIAS"
 
       - name: Build APK
         run: flutter build apk --release --build-name=${{ steps.version.outputs.version }}
 
+      - name: Setup Android SDK (for apksigner)
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '11076708'  # latest
+
       - name: Verify APK signature
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
-          echo "=== APK Signature Info ==="
-          $ANDROID_HOME/build-tools/*/apksigner verify --print-cert build/app/outputs/flutter-apk/app-release.apk || true
-          echo "=== Keystore Certificate ==="
-          keytool -list -v -keystore android/app/release.jks -storepass "${{ secrets.KEYSTORE_PASSWORD || 'Octopus2024!' }}" -alias release 2>&1 | head -20
+          set -e
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          APKSIGNER=$(find $ANDROID_HOME/build-tools -name apksigner | head -1)
+          echo "=== 1. Keystore cert (expected) ==="
+          keytool -list -v -keystore android/app/release.jks -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" 2>&1 \
+            | grep -E "SHA1:|SHA256:|Owner:" | head -5
+          echo
+          echo "=== 2. APK signer cert (apksigner verify) ==="
+          $APKSIGNER verify --print-certs "$APK" 2>&1 | tee /tmp/apk-cert.txt
+          echo
+          echo "=== 3. SHA1 comparison ==="
+          KEYSTORE_SHA1=$(keytool -list -v -keystore android/app/release.jks -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" 2>/dev/null | grep "SHA1:" | head -1 | awk '{print $2}' | tr -d : | tr 'A-Z' 'a-z')
+          # apksigner prints: "SHA-1 digest: <hex>" or sometimes "Signer #1 certificate DN: ..."
+          APK_SHA1=$($APKSIGNER verify --print-certs "$APK" 2>&1 | grep -oE "SHA-1 digest: [a-f0-9:]+" | head -1 | awk '{print $3}' | tr -d : | tr 'A-Z' 'a-z')
+          if [ -z "$APK_SHA1" ]; then
+            APK_SHA1=$($APKSIGNER verify --print-certs "$APK" 2>&1 | openssl x509 -fingerprint -sha1 -noout 2>/dev/null | awk -F= '{print $2}')
+          fi
+          echo "Keystore SHA1: $KEYSTORE_SHA1"
+          echo "APK     SHA1: $APK_SHA1"
+          if [ -z "$APK_SHA1" ] || [ "$KEYSTORE_SHA1" != "$APK_SHA1" ]; then
+            echo "❌ ERROR: signature mismatch or apksigner can't extract cert"
+            exit 1
+          fi
+          echo "✅ Signature verified"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -100,24 +110,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Download APK artifact
         uses: actions/download-artifact@v4
         with:
           name: android-apk
           path: ./artifacts/
-
       - name: Download Web artifact
         uses: actions/download-artifact@v4
         with:
           name: web-build
           path: ./artifacts/web/
-
-      - name: Package Web build
-        run: |
-          cd ./artifacts/web && zip -r ../web-build.zip . && cd ..
-          ls -la *.apk *.zip
-
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
@@ -126,12 +128,10 @@ jobs:
             ## 📦 下载说明
 
             ### Android
-            下载 `app-release.apk` 安装即可。签名固定，可覆盖升级。
+            下载 `app-release.apk` 安装即可。本 release 由仓库 owner 私钥签名，签名固定，可覆盖升级。
 
             ### Web
             下载 `web-build.zip` 解压后部署到任意静态服务器。
-
-            ---
           files: |
             ./artifacts/app-release.apk
-            ./artifacts/web-build.zip
+            ./artifacts/web/web-build.zip

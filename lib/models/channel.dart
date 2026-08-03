@@ -135,6 +135,7 @@ class Channel {
   final int? notifChannelId;
   final String keySelectionStrategy;
   final List<CustomHeader> customHeader;
+  final List<CustomHeaderOp> customHeaderOps;
   final String? paramOverride;
   final String? channelProxy;
   final RequestRewriteConfig? requestRewrite;
@@ -169,6 +170,7 @@ class Channel {
     this.notifChannelId,
     this.keySelectionStrategy = '',
     this.customHeader = const [],
+    this.customHeaderOps = const [],
     this.paramOverride,
     this.channelProxy,
     this.requestRewrite,
@@ -211,6 +213,9 @@ class Channel {
       customHeader: parseJsonMapList(
         json['custom_header'],
       ).map(CustomHeader.fromJson).toList(),
+      customHeaderOps: parseJsonMapList(
+        json['custom_header_ops'],
+      ).map(CustomHeaderOp.fromJson).toList(),
       paramOverride: json['param_override'] == null
           ? null
           : parseString(json['param_override']),
@@ -263,6 +268,7 @@ class Channel {
       if (notifChannelId != null) 'notif_channel_id': notifChannelId,
       'key_selection_strategy': keySelectionStrategy,
       'custom_header': customHeader.map((e) => e.toJson()).toList(),
+      'custom_header_ops': customHeaderOps.map((e) => e.toJson()).toList(),
       if (paramOverride != null) 'param_override': paramOverride,
       if (channelProxy != null) 'channel_proxy': channelProxy,
       if (requestRewrite != null) 'request_rewrite': requestRewrite!.toJson(),
@@ -350,6 +356,95 @@ class CustomHeader {
     'header_key': headerKey,
     'header_value': headerValue,
   };
+}
+
+enum HeaderOpType {
+  set,
+  add,
+  delete,
+  rename,
+  copy;
+
+  static HeaderOpType fromString(String value) {
+    return HeaderOpType.values.firstWhere(
+      (e) => e.name == value,
+      orElse: () => HeaderOpType.set,
+    );
+  }
+}
+
+/// A single header rewrite instruction (matches Octopus mod2 backend).
+/// Sequence semantics: ops apply in array order on the outbound request
+/// after copyHeaders. Effective behavior:
+///   set    (name, value)  overwrite header to value
+///   add    (name, value)  append a value (multi-valued)
+///   delete (name)         remove header
+///   rename (name, to)     rename header name (preserves value)
+///   copy   (name, from)   copy value from `from` to `name`
+class CustomHeaderOp {
+  final HeaderOpType op;
+  final String name;
+  final String? value;
+  final String? to;
+  final String? from;
+
+  const CustomHeaderOp({
+    required this.op,
+    required this.name,
+    this.value,
+    this.to,
+    this.from,
+  });
+
+  factory CustomHeaderOp.fromJson(Map<String, dynamic> json) {
+    return CustomHeaderOp(
+      op: HeaderOpType.fromString(parseString(json['op'], fallback: 'set')),
+      name: parseString(json['name']),
+      value: json['value'] == null ? null : parseString(json['value']),
+      to: json['to'] == null ? null : parseString(json['to']),
+      from: json['from'] == null ? null : parseString(json['from']),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'op': op.name,
+        'name': name,
+        if (value != null && value!.isNotEmpty) 'value': value,
+        if (to != null && to!.isNotEmpty) 'to': to,
+        if (from != null && from!.isNotEmpty) 'from': from,
+      };
+
+  CustomHeaderOp copyWith({
+    HeaderOpType? op,
+    String? name,
+    String? value,
+    String? to,
+    String? from,
+  }) {
+    return CustomHeaderOp(
+      op: op ?? this.op,
+      name: name ?? this.name,
+      value: value ?? this.value,
+      to: to ?? this.to,
+      from: from ?? this.from,
+    );
+  }
+
+  /// Human-readable summary for UI display.
+  String summary() {
+    switch (op) {
+      case HeaderOpType.set:
+        return 'Set $name = ${value ?? ""}';
+      case HeaderOpType.add:
+        return 'Add $name: ${value ?? ""}';
+      case HeaderOpType.delete:
+        return 'Delete $name';
+      case HeaderOpType.rename:
+        return 'Rename $name -> ${to ?? ""}';
+      case HeaderOpType.copy:
+        return 'Copy ${from ?? ""} -> $name';
+    }
+  }
 }
 
 class ChannelKey {
@@ -463,6 +558,7 @@ class ChannelUpdateRequest {
   final bool? autoSync;
   final int? autoGroup;
   final List<CustomHeader>? customHeader;
+  final List<CustomHeaderOp>? customHeaderOps;
   final String? paramOverride;
   final String? channelProxy;
   final String? matchRegex;
@@ -487,6 +583,7 @@ class ChannelUpdateRequest {
     this.autoSync,
     this.autoGroup,
     this.customHeader,
+    this.customHeaderOps,
     this.paramOverride,
     this.channelProxy,
     this.matchRegex,
@@ -521,6 +618,9 @@ class ChannelUpdateRequest {
       customHeader: !_listEquals(previous.customHeader, next.customHeader, (h) => '${h.headerKey}:${h.headerValue}')
           ? next.customHeader
           : null,
+      customHeaderOps: !_listEquals(previous.customHeaderOps, next.customHeaderOps, (h) => '${h.op.name}:${h.name}:${h.value}:${h.to}:${h.from}')
+          ? next.customHeaderOps
+          : null,
       paramOverride: previous.paramOverride != next.paramOverride ? next.paramOverride : null,
       channelProxy: previous.channelProxy != next.channelProxy ? next.channelProxy : null,
       matchRegex: previous.matchRegex != next.matchRegex ? next.matchRegex : null,
@@ -550,6 +650,7 @@ class ChannelUpdateRequest {
       if (autoSync != null) 'auto_sync': autoSync,
       if (autoGroup != null) 'auto_group': autoGroup,
       if (customHeader != null) 'custom_header': customHeader!.map((e) => e.toJson()).toList(),
+      if (customHeaderOps != null) 'custom_header_ops': customHeaderOps!.map((e) => e.toJson()).toList(),
       if (paramOverride != null) 'param_override': paramOverride,
       if (channelProxy != null) 'channel_proxy': channelProxy,
       if (matchRegex != null) 'match_regex': matchRegex,

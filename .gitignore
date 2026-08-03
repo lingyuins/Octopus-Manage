@@ -69,3 +69,4 @@ nul
 
 # Android build reports (auto-generated)
 android/build/reports/
+keystore/
