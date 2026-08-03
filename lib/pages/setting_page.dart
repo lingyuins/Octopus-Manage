@@ -8,7 +8,10 @@ import 'package:octopusmanage/models/setting.dart';
 import 'package:octopusmanage/pages/alert_page.dart';
 import 'package:octopusmanage/pages/analytics_page.dart';
 import 'package:octopusmanage/pages/audit_log_page.dart';
+import 'package:octopusmanage/pages/credential_page.dart';
+import 'package:octopusmanage/pages/model_mapping_page.dart';
 import 'package:octopusmanage/pages/ops_page.dart';
+import 'package:octopusmanage/pages/proxy_page.dart';
 import 'package:octopusmanage/providers/app_provider.dart';
 import 'package:octopusmanage/theme/app_theme.dart';
 import 'package:octopusmanage/widgets/app_card.dart';
@@ -1170,6 +1173,33 @@ class _SettingPageState extends State<SettingPage> {
                       busy: false,
                       onTap: () => Navigator.of(context).push(
                         CupertinoPageRoute(builder: (_) => const AuditLogPage()),
+                      ),
+                    ),
+                    const SizedBox(height: AppTheme.spacingSm),
+                    _ActionRow(
+                      title: loc.t('proxy'),
+                      icon: CupertinoIcons.chevron_right,
+                      busy: false,
+                      onTap: () => Navigator.of(context).push(
+                        CupertinoPageRoute(builder: (_) => const ProxyPage()),
+                      ),
+                    ),
+                    const SizedBox(height: AppTheme.spacingSm),
+                    _ActionRow(
+                      title: loc.t('model_mapping'),
+                      icon: CupertinoIcons.chevron_right,
+                      busy: false,
+                      onTap: () => Navigator.of(context).push(
+                        CupertinoPageRoute(builder: (_) => const ModelMappingPage()),
+                      ),
+                    ),
+                    const SizedBox(height: AppTheme.spacingSm),
+                    _ActionRow(
+                      title: loc.t('api_credentials'),
+                      icon: CupertinoIcons.chevron_right,
+                      busy: false,
+                      onTap: () => Navigator.of(context).push(
+                        CupertinoPageRoute(builder: (_) => const CredentialPage()),
                       ),
                     ),
                   ],

@@ -1,6 +1,5 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:octopusmanage/l10n/app_localizations.dart';
 import 'package:octopusmanage/models/model_mapping.dart';
 import 'package:octopusmanage/providers/app_provider.dart';
 import 'package:octopusmanage/theme/app_theme.dart';
@@ -133,7 +132,7 @@ class _ModelMappingPageState extends State<ModelMappingPage> {
                       ),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<String>(
-                        value: matchType,
+                        initialValue: matchType,
                         decoration: InputDecoration(
                           labelText: loc.t('mapping_match_type'),
                           border: const OutlineInputBorder(),

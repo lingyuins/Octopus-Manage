@@ -262,7 +262,7 @@ class _CredentialPageState extends State<CredentialPage> {
                       ),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<String>(
-                        value: apiType,
+                        initialValue: apiType,
                         decoration: InputDecoration(
                           labelText: loc.t('credential_api_type'),
                           border: const OutlineInputBorder(),

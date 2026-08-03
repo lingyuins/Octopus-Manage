@@ -70,9 +70,10 @@ class _AlertPageState extends State<AlertPage> {
       cancelText: loc.t('cancel'),
       isDanger: true,
     );
-    if (!ok) return;
+    if (!ok || !mounted) return;
     try {
-      await context.read<AppProvider>().api.deleteAlertRule(rule.id);
+      final api = context.read<AppProvider>().api;
+      await api.deleteAlertRule(rule.id);
       _load();
     } catch (e) {
       if (mounted) showErrorDialog(context, e.toString());
@@ -217,7 +218,7 @@ class _AlertPageState extends State<AlertPage> {
     final conditionJson = conditionJsonCtl.text.trim();
     nameCtl.dispose(); thresholdCtl.dispose(); cooldownCtl.dispose(); conditionJsonCtl.dispose();
 
-    if (result != true || name.isEmpty) return;
+    if (result != true || name.isEmpty || !mounted) return;
 
     try {
       final api = context.read<AppProvider>().api;
@@ -435,9 +436,10 @@ class _AlertPageState extends State<AlertPage> {
                       content: loc.t('delete_confirm', {'name': ch.name}),
                       confirmText: loc.t('delete'), cancelText: loc.t('cancel'), isDanger: true,
                     );
-                    if (!ok) return;
+                    if (!ok || !mounted) return;
                     try {
-                      await context.read<AppProvider>().api.deleteNotifChannel(ch.id);
+                      final api = context.read<AppProvider>().api;
+                      await api.deleteNotifChannel(ch.id);
                       _load();
                     } catch (e) {
                       if (mounted) showErrorDialog(context, e.toString());
@@ -530,7 +532,7 @@ class _AlertPageState extends State<AlertPage> {
     final url = urlCtl.text.trim();
     nameCtl.dispose(); urlCtl.dispose();
 
-    if (result != true || name.isEmpty) return;
+    if (result != true || name.isEmpty || !mounted) return;
 
     try {
       final api = context.read<AppProvider>().api;

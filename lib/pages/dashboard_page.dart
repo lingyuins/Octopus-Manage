@@ -432,19 +432,6 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  String _formatWaitTime(int ms, AppLocalizations loc, WaitTimeUnit unit) {
-    switch (unit) {
-      case WaitTimeUnit.ms:
-        return '${ms}ms';
-      case WaitTimeUnit.s:
-        return '${(ms / 1000).toStringAsFixed(2)}s';
-      case WaitTimeUnit.auto:
-        if (ms < 1000) return '${ms}ms';
-        if (ms < 60000) return '${(ms / 1000).toStringAsFixed(1)}s';
-        return '${(ms / 60000).toStringAsFixed(1)}m';
-    }
-  }
-
   Widget _buildDailyChart(
     ThemeData theme,
     ColorScheme colorScheme,

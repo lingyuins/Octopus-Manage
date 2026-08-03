@@ -141,10 +141,14 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> delete(String path) async {
+  Future<Map<String, dynamic>> delete(
+    String path, {
+    Map<String, String>? query,
+  }) async {
     try {
+      final finalUri = _buildUri(path, query: query);
       final response = await http
-          .delete(_buildUri(path), headers: _headers)
+          .delete(finalUri, headers: _headers)
           .timeout(_timeout);
       return _handleResponse(response);
     } on TimeoutException {

@@ -1,25 +1,66 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:octopusmanage/models/api_credential.dart';
 import 'package:octopusmanage/models/api_key.dart';
 import 'package:octopusmanage/models/channel.dart';
 import 'package:octopusmanage/models/group.dart';
 import 'package:octopusmanage/models/group_probe.dart';
 import 'package:octopusmanage/models/llm.dart';
+import 'package:octopusmanage/models/model_mapping.dart';
+import 'package:octopusmanage/models/proxy.dart';
 import 'package:octopusmanage/models/setting.dart';
 import 'package:octopusmanage/services/api_service.dart';
 import 'package:octopusmanage/services/octopus_api.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _FakeApiService extends ApiService {
-  _FakeApiService({this.getResponse = const {}});
+  _FakeApiService({
+    this.getResponse = const {},
+    this.postResponse = const {'data': {}},
+  });
 
   final Map<String, dynamic> getResponse;
+  final dynamic postResponse;
+  String? lastMethod;
+  String? lastPath;
+  Map<String, String>? lastQuery;
+  dynamic lastBody;
 
   @override
   Future<Map<String, dynamic>> get(
     String path, {
     Map<String, String>? query,
   }) async {
+    lastMethod = 'GET';
+    lastPath = path;
+    lastQuery = query;
     return getResponse;
+  }
+
+  @override
+  Future<dynamic> post(String path, {dynamic body, String? contentType}) async {
+    lastMethod = 'POST';
+    lastPath = path;
+    lastBody = body;
+    return postResponse;
+  }
+
+  @override
+  Future<Map<String, dynamic>> put(String path, {dynamic body}) async {
+    lastMethod = 'PUT';
+    lastPath = path;
+    lastBody = body;
+    return postResponse as Map<String, dynamic>;
+  }
+
+  @override
+  Future<Map<String, dynamic>> delete(
+    String path, {
+    Map<String, String>? query,
+  }) async {
+    lastMethod = 'DELETE';
+    lastPath = path;
+    lastQuery = query;
+    return const {'data': {}};
   }
 }
 
@@ -268,5 +309,54 @@ void main() {
         expect(channels.single.channelName, 'Primary');
       },
     );
+
+    test('uses current backend paths for fixed management APIs', () async {
+      final service = _FakeApiService(
+        getResponse: {'data': []},
+        postResponse: {'data': {}},
+      );
+      final api = OctopusApi(service);
+
+      await api.getProxies();
+      expect(service.lastMethod, 'GET');
+      expect(service.lastPath, '/api/v1/proxy-pool/list');
+
+      await api.updateProxy(const ProxyConfiguration(id: 3, name: 'p'));
+      expect(service.lastMethod, 'POST');
+      expect(service.lastPath, '/api/v1/proxy-pool/update');
+
+      await api.deleteProxy(3);
+      expect(service.lastMethod, 'DELETE');
+      expect(service.lastPath, '/api/v1/proxy-pool/delete/3');
+
+      await api.getCredentials();
+      expect(service.lastMethod, 'GET');
+      expect(service.lastPath, '/api/v1/api-credential/list');
+
+      await api.updateCredential(
+        const APICredentialProfile(id: 4, name: 'c'),
+      );
+      expect(service.lastMethod, 'POST');
+      expect(service.lastPath, '/api/v1/api-credential/update');
+
+      await api.getModelMappings();
+      expect(service.lastMethod, 'GET');
+      expect(service.lastPath, '/api/v1/model-mapping');
+
+      await api.createModelMapping(const ModelMapping(name: 'm'));
+      expect(service.lastMethod, 'POST');
+      expect(service.lastPath, '/api/v1/model-mapping');
+    });
+
+    test('uses query delete paths for WebDAV backups', () async {
+      final service = _FakeApiService();
+      final api = OctopusApi(service);
+
+      await api.deleteWebDAVBackup('backup.json');
+
+      expect(service.lastMethod, 'DELETE');
+      expect(service.lastPath, '/api/v1/backup/webdav/delete');
+      expect(service.lastQuery, {'filename': 'backup.json'});
+    });
   });
 }

@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:octopusmanage/l10n/app_localizations.dart';
 import 'package:octopusmanage/models/site.dart';
+import 'package:octopusmanage/pages/site_channel_page.dart';
 import 'package:octopusmanage/providers/app_provider.dart';
 import 'package:octopusmanage/theme/app_theme.dart';
 import 'package:octopusmanage/widgets/app_card.dart';
@@ -529,6 +530,26 @@ class _SiteDetailPageState extends State<SiteDetailPage>
                       _site.lastSyncAt * 1000,
                     ).toString()
                   : loc.t('never'),
+            ),
+            const SizedBox(height: AppTheme.spacingMd),
+            SizedBox(
+              width: double.infinity,
+              child: CupertinoButton(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                color: colorScheme.secondaryContainer,
+                onPressed: () => Navigator.of(context).push(
+                  CupertinoPageRoute(
+                    builder: (_) => SiteChannelPage(
+                      siteId: _site.id,
+                      siteName: _site.name,
+                    ),
+                  ),
+                ),
+                child: Text(
+                  loc.t('site_channel_projection'),
+                  style: TextStyle(color: colorScheme.onSecondaryContainer),
+                ),
+              ),
             ),
           ],
         ),

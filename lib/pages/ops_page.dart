@@ -52,8 +52,8 @@ class _OpsPageState extends State<OpsPage> {
       _telemetryLoading = true;
       _telemetryError = null;
     });
+    final api = context.read<AppProvider>().api;
     try {
-      final api = context.read<AppProvider>().api;
       final results = await Future.wait([
         api.getOpsSystem(),
         api.getOpsCache(),
@@ -76,7 +76,6 @@ class _OpsPageState extends State<OpsPage> {
 
     // Load telemetry separately so overview still shows if telemetry fails
     try {
-      final api = context.read<AppProvider>().api;
       final telemetry = await api.getOpsTelemetry();
       if (mounted) setState(() => _telemetry = telemetry);
     } catch (e) {

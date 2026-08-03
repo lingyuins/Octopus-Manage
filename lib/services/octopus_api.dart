@@ -595,8 +595,11 @@ class OctopusApi {
   }
 
   Future<Site> getSite(int id) async {
-    final res = await _api.get('/api/v1/site/detail', query: {'id': '$id'});
-    return Site.fromJson(parseJsonMap(res['data']) ?? {});
+    final sites = await getSites();
+    return sites.firstWhere(
+      (site) => site.id == id,
+      orElse: () => Site(id: id),
+    );
   }
 
   Future<Site> createSite(Site site) async {
@@ -623,7 +626,7 @@ class OctopusApi {
   Future<Site> detectSite(String baseUrl) async {
     final res = await _api.post(
       '/api/v1/site/detect',
-      body: {'base_url': baseUrl},
+      body: {'url': baseUrl},
     );
     return Site.fromJson(parseJsonMap(res['data']) ?? {});
   }
@@ -632,18 +635,24 @@ class OctopusApi {
     List<int> ids,
     Map<String, dynamic> updates,
   ) async {
+    final action = updates['action']?.toString() ??
+        (updates['enabled'] == true
+            ? 'enable'
+            : updates['enabled'] == false
+                ? 'disable'
+                : 'delete');
     await _api.post(
-      '/api/v1/site/batch-update',
-      body: {'ids': ids, ...updates},
+      '/api/v1/site/batch',
+      body: {'ids': ids, 'action': action},
     );
   }
 
   Future<void> archiveSite(int id) async {
-    await _api.post('/api/v1/site/archive', body: {'id': id});
+    await _api.post('/api/v1/site/archive/$id');
   }
 
   Future<void> restoreSite(int id) async {
-    await _api.post('/api/v1/site/restore', body: {'id': id});
+    await _api.post('/api/v1/site/restore/$id');
   }
 
   Future<List<SiteAccount>> getSiteAccounts(int siteId) async {
@@ -655,10 +664,7 @@ class OctopusApi {
   }
 
   Future<List<SiteToken>> getSiteTokens(int siteId) async {
-    final res = await _api.get(
-      '/api/v1/site/tokens',
-      query: {'site_id': '$siteId'},
-    );
+    final res = await _api.get('/api/v1/remote-site-token/list/$siteId');
     return parseJsonMapList(res['data']).map(SiteToken.fromJson).toList();
   }
 
@@ -672,7 +678,7 @@ class OctopusApi {
 
   // ====== Site Sync ======
   Future<void> syncSite(int siteId) async {
-    await _api.post('/api/v1/site/sync', body: {'id': siteId});
+    await _api.post('/api/v1/site/account/sync/$siteId');
   }
 
   Future<void> syncAllSites() async {
@@ -681,10 +687,7 @@ class OctopusApi {
 
   // ====== Site Check-in ======
   Future<CheckInRecord> checkInSite(int siteId, int accountId) async {
-    final res = await _api.post(
-      '/api/v1/site/checkin',
-      body: {'site_id': siteId, 'account_id': accountId},
-    );
+    final res = await _api.post('/api/v1/site/account/checkin/$accountId');
     return CheckInRecord.fromJson(parseJsonMap(res['data']) ?? {});
   }
 
@@ -761,12 +764,13 @@ class OctopusApi {
     int accountId, {
     int days = 30,
   }) async {
+    final end = DateTime.now();
+    final start = end.subtract(Duration(days: days));
     final res = await _api.get(
-      '/api/v1/site/balance/history',
+      '/api/v1/balance-history/list/$siteId',
       query: {
-        'site_id': '$siteId',
-        'account_id': '$accountId',
-        'days': '$days',
+        'start_date': start.toIso8601String(),
+        'end_date': end.toIso8601String(),
       },
     );
     return parseJsonMapList(res['data'])
@@ -778,16 +782,13 @@ class OctopusApi {
     int siteId,
     int accountId,
   ) async {
-    final res = await _api.get(
-      '/api/v1/site/balance/prediction',
-      query: {'site_id': '$siteId', 'account_id': '$accountId'},
-    );
+    final res = await _api.get('/api/v1/balance-history/prediction/$siteId');
     return BalancePrediction.fromJson(parseJsonMap(res['data']) ?? {});
   }
 
   // ====== Proxy Pool ======
   Future<List<ProxyConfiguration>> getProxies() async {
-    final res = await _api.get('/api/v1/proxy/list');
+    final res = await _api.get('/api/v1/proxy-pool/list');
     return parseJsonMapList(res['data'])
         .map(ProxyConfiguration.fromJson)
         .toList();
@@ -795,39 +796,37 @@ class OctopusApi {
 
   Future<ProxyConfiguration> createProxy(ProxyConfiguration proxy) async {
     final res = await _api.post(
-      '/api/v1/proxy/create',
+      '/api/v1/proxy-pool/create',
       body: proxy.toJson(),
     );
     return ProxyConfiguration.fromJson(parseJsonMap(res['data']) ?? {});
   }
 
   Future<ProxyConfiguration> updateProxy(ProxyConfiguration proxy) async {
-    final res = await _api.put(
-      '/api/v1/proxy/${proxy.id}',
+    final res = await _api.post(
+      '/api/v1/proxy-pool/update',
       body: proxy.toJson(),
     );
     return ProxyConfiguration.fromJson(parseJsonMap(res['data']) ?? {});
   }
 
   Future<void> deleteProxy(int id) async {
-    await _api.delete('/api/v1/proxy/$id');
+    await _api.delete('/api/v1/proxy-pool/delete/$id');
   }
 
   Future<Map<String, dynamic>> testProxy(String url, String type,
       {String? username, String? password}) async {
     final body = <String, dynamic>{
       'url': url,
-      'type': type,
+      'proxy_url': url,
     };
-    if (username != null) body['username'] = username;
-    if (password != null) body['password'] = password;
-    final res = await _api.post('/api/v1/proxy/test', body: body);
+    final res = await _api.post('/api/v1/proxy-pool/test', body: body);
     return parseJsonMap(res['data']) ?? {};
   }
 
   // ====== Model Mapping ======
   Future<List<ModelMapping>> getModelMappings() async {
-    final res = await _api.get('/api/v1/model-mapping/list');
+    final res = await _api.get('/api/v1/model-mapping');
     return parseJsonMapList(res['data'])
         .map(ModelMapping.fromJson)
         .toList();
@@ -835,7 +834,7 @@ class OctopusApi {
 
   Future<ModelMapping> createModelMapping(ModelMapping mapping) async {
     final res = await _api.post(
-      '/api/v1/model-mapping/create',
+      '/api/v1/model-mapping',
       body: mapping.toJson(),
     );
     return ModelMapping.fromJson(parseJsonMap(res['data']) ?? {});
@@ -855,7 +854,7 @@ class OctopusApi {
 
   // ====== API Credential Profiles ======
   Future<List<APICredentialProfile>> getCredentials() async {
-    final res = await _api.get('/api/v1/credential/list');
+    final res = await _api.get('/api/v1/api-credential/list');
     return parseJsonMapList(res['data'])
         .map(APICredentialProfile.fromJson)
         .toList();
@@ -864,7 +863,7 @@ class OctopusApi {
   Future<APICredentialProfile> createCredential(
       APICredentialProfile credential) async {
     final res = await _api.post(
-      '/api/v1/credential/create',
+      '/api/v1/api-credential/create',
       body: credential.toJson(),
     );
     return APICredentialProfile.fromJson(parseJsonMap(res['data']) ?? {});
@@ -872,15 +871,25 @@ class OctopusApi {
 
   Future<APICredentialProfile> updateCredential(
       APICredentialProfile credential) async {
-    final res = await _api.put(
-      '/api/v1/credential/${credential.id}',
+    final res = await _api.post(
+      '/api/v1/api-credential/update',
       body: credential.toJson(),
     );
     return APICredentialProfile.fromJson(parseJsonMap(res['data']) ?? {});
   }
 
   Future<void> deleteCredential(int id) async {
-    await _api.delete('/api/v1/credential/$id');
+    await _api.delete('/api/v1/api-credential/delete/$id');
+  }
+
+  Future<List<String>> getCredentialApiTypes() async {
+    final res = await _api.get('/api/v1/api-credential/api-types');
+    return parseStringList(res['data']);
+  }
+
+  Future<List<String>> getCredentialCliTools() async {
+    final res = await _api.get('/api/v1/api-credential/cli-tools');
+    return parseStringList(res['data']);
   }
 
   Future<List<VerificationProbe>> getVerificationProbes() async {
@@ -901,130 +910,326 @@ class OctopusApi {
         .toList();
   }
 
-  Future<String> exportCliConfig(
-      int credentialId, String tool) async {
-    final res = await _api.get(
-      '/api/v1/credential/$credentialId/export',
-      query: {'tool': tool},
+  Future<String> exportCliConfig(int credentialId, String tool) async {
+    final credentials = await getCredentials();
+    final credential = credentials.firstWhere(
+      (item) => item.id == credentialId,
+      orElse: () => APICredentialProfile(id: credentialId),
+    );
+    final res = await _api.post(
+      '/api/v1/cli-export/generate',
+      body: {
+        'base_url': credential.baseUrl,
+        'api_key': credential.apiKey,
+        'api_type': credential.apiType,
+        'tool': tool.replaceAll('-', '_'),
+      },
     );
     return res['data']?.toString() ?? '';
   }
 
   // ====== Site Channel Projection ======
   Future<List<SiteChannelCard>> getSiteChannels(int siteId) async {
-    final res = await _api.get('/api/v1/site/$siteId/channels');
-    return parseJsonMapList(res['data'])
-        .map(SiteChannelCard.fromJson)
-        .toList();
+    final res = await _api.get('/api/v1/site-channel/$siteId');
+    return _parseSiteChannelCards(res['data'], siteId: siteId);
   }
 
   Future<SiteChannelCard> getSiteChannel(
       int siteId, int channelId) async {
-    final res =
-        await _api.get('/api/v1/site/$siteId/channels/$channelId');
-    return SiteChannelCard.fromJson(parseJsonMap(res['data']) ?? {});
+    final res = await _api.get('/api/v1/site-channel/$siteId/account/$channelId');
+    final cards = _parseSiteChannelCards(res['data'], siteId: siteId);
+    return cards.isEmpty ? SiteChannelCard(siteId: siteId, accountId: channelId) : cards.first;
   }
 
   Future<List<APIKey>> getSiteChannelKeys(
       int siteId, int channelId) async {
-    final res = await _api
-        .get('/api/v1/site/$siteId/channels/$channelId/keys');
-    return parseJsonMapList(res['data']).map(APIKey.fromJson).toList();
+    final res = await _api.get('/api/v1/site-channel/$siteId/account/$channelId');
+    final data = parseJsonMap(res['data']) ?? {};
+    return parseJsonMapList(data['keys']).map(APIKey.fromJson).toList();
   }
 
   Future<List<APIKey>> getSiteChannelSourceKeys(int siteId) async {
-    final res =
-        await _api.get('/api/v1/site/$siteId/channels/source-keys');
-    return parseJsonMapList(res['data']).map(APIKey.fromJson).toList();
+    final res = await _api.get('/api/v1/site-channel/$siteId');
+    final keys = <APIKey>[];
+    for (final account in parseJsonMapList(res['data'])) {
+      keys.addAll(parseJsonMapList(account['source_keys']).map(APIKey.fromJson));
+    }
+    return keys;
   }
 
   Future<List<SiteChannelGroup>> getSiteChannelGroupProjection(
       int siteId) async {
-    final res =
-        await _api.get('/api/v1/site/$siteId/channels/group-projection');
-    return parseJsonMapList(res['data'])
-        .map(SiteChannelGroup.fromJson)
-        .toList();
+    final res = await _api.get('/api/v1/site-channel/$siteId');
+    final groups = <SiteChannelGroup>[];
+    for (final account in parseJsonMapList(res['data'])) {
+      groups.addAll(
+        parseJsonMapList(account['groups']).map(SiteChannelGroup.fromJson),
+      );
+    }
+    return groups;
   }
 
   Future<List<SiteChannelModel>> getSiteChannelModelRoutes(
       int siteId, int channelId) async {
-    final res = await _api
-        .get('/api/v1/site/$siteId/channels/$channelId/model-routes');
-    return parseJsonMapList(res['data'])
-        .map(SiteChannelModel.fromJson)
-        .toList();
+    final res = await _api.get(
+      '/api/v1/site-channel/$siteId/account/$channelId/model-history',
+    );
+    return _parseSiteChannelModels(res['data'], channelId: channelId);
   }
 
   Future<List<SiteChannelModel>> getSiteChannelManualModels(
       int siteId, int channelId) async {
-    final res = await _api
-        .get('/api/v1/site/$siteId/channels/$channelId/manual-models');
-    return parseJsonMapList(res['data'])
-        .map(SiteChannelModel.fromJson)
-        .toList();
+    final res = await _api.get('/api/v1/site-channel/$siteId/account/$channelId');
+    final data = parseJsonMap(res['data']) ?? {};
+    return _parseSiteChannelModels(data['manual_models'], channelId: channelId);
   }
 
   Future<void> addSiteChannelManualModel(
       int siteId, int channelId, String modelName) async {
     await _api.post(
-      '/api/v1/site/$siteId/channels/$channelId/manual-models',
-      body: {'model_name': modelName},
+      '/api/v1/site-channel/$siteId/account/$channelId/manual-models',
+      body: {
+        'group_key': '',
+        'models': [
+          {'model_name': modelName, 'route_type': 'openai_chat'},
+        ],
+      },
     );
   }
 
   Future<void> deleteSiteChannelManualModel(
       int siteId, int channelId, String modelName) async {
-    await _api.delete(
-      '/api/v1/site/$siteId/channels/$channelId/manual-models/$modelName',
+    await _api.post(
+      '/api/v1/site-channel/$siteId/account/$channelId/manual-models/delete',
+      body: {'group_key': '', 'model_name': modelName},
     );
+  }
+
+  List<SiteChannelCard> _parseSiteChannelCards(dynamic value, {int siteId = 0}) {
+    final list = parseJsonMapList(value);
+    final cards = <SiteChannelCard>[];
+    for (final item in list) {
+      final groups = parseJsonMapList(item['groups']);
+      if (groups.isEmpty) {
+        cards.add(SiteChannelCard.fromJson({...item, if (siteId > 0) 'site_id': siteId}));
+        continue;
+      }
+      for (final group in groups) {
+        final models = parseJsonMapList(group['models']);
+        if (models.isEmpty) {
+          cards.add(SiteChannelCard.fromJson({
+            ...item,
+            ...group,
+            if (siteId > 0) 'site_id': siteId,
+            'account_id': item['account_id'] ?? item['id'],
+            'channel_id': item['account_id'] ?? item['id'],
+            'channel_name': item['channel_name'] ?? item['name'],
+            'group_name': group['group_name'] ?? group['name'] ?? group['group_key'],
+          }));
+        } else {
+          for (final model in models) {
+            cards.add(SiteChannelCard.fromJson({
+              ...item,
+              ...group,
+              ...model,
+              if (siteId > 0) 'site_id': siteId,
+              'account_id': item['account_id'] ?? item['id'],
+              'channel_id': item['account_id'] ?? item['id'],
+              'channel_name': item['channel_name'] ?? item['name'],
+              'group_name': group['group_name'] ?? group['name'] ?? group['group_key'],
+            }));
+          }
+        }
+      }
+    }
+    return cards;
+  }
+
+  List<SiteChannelModel> _parseSiteChannelModels(dynamic value, {int channelId = 0}) {
+    final list = parseJsonMapList(value);
+    final models = <SiteChannelModel>[];
+    for (final item in list) {
+      final nested = parseJsonMapList(item['models']);
+      if (nested.isEmpty) {
+        models.add(SiteChannelModel.fromJson({
+          ...item,
+          if (channelId > 0) 'channel_id': item['channel_id'] ?? channelId,
+        }));
+      } else {
+        for (final model in nested) {
+          models.add(SiteChannelModel.fromJson({
+            ...model,
+            if (channelId > 0) 'channel_id': model['channel_id'] ?? channelId,
+          }));
+        }
+      }
+    }
+    return models;
+  }
+
+  // ====== Announcement ======
+  Future<List<Map<String, dynamic>>> getAnnouncements({int? siteId}) async {
+    final res = await _api.get(
+      siteId == null
+          ? '/api/v1/announcement/list'
+          : '/api/v1/announcement/list/$siteId',
+    );
+    return parseJsonMapList(res['data']);
+  }
+
+  Future<void> refreshAnnouncements(int siteId) async {
+    await _api.post('/api/v1/announcement/refresh/$siteId');
+  }
+
+  Future<void> refreshAllAnnouncements() async {
+    await _api.post('/api/v1/announcement/refresh-all');
+  }
+
+  // ====== Notification ======
+  Future<List<Map<String, dynamic>>> getNotifications({
+    int page = 1,
+    int pageSize = 50,
+    bool? unread,
+  }) async {
+    final query = <String, String>{
+      'page': '$page',
+      'page_size': '$pageSize',
+      if (unread != null) 'unread': '$unread',
+    };
+    final res = await _api.get('/api/v1/notification/list', query: query);
+    return parseJsonMapList(res['data']);
+  }
+
+  Future<int> getUnreadNotificationCount() async {
+    final res = await _api.get('/api/v1/notification/unread-count');
+    final data = parseJsonMap(res['data']);
+    return parseInt(data?['count'] ?? res['data']);
+  }
+
+  Future<void> markNotificationRead(int id, {bool read = true}) async {
+    await _api.post(
+      read
+          ? '/api/v1/notification/read/$id'
+          : '/api/v1/notification/unread/$id',
+    );
+  }
+
+  Future<void> markAllNotificationsRead() async {
+    await _api.post('/api/v1/notification/read-all');
+  }
+
+  // ====== Usage History ======
+  Future<List<Map<String, dynamic>>> getUsageHistory({
+    int page = 1,
+    int pageSize = 50,
+  }) async {
+    final res = await _api.get(
+      '/api/v1/usage-history',
+      query: {'page': '$page', 'page_size': '$pageSize'},
+    );
+    return parseJsonMapList(res['data']);
+  }
+
+  Future<Map<String, dynamic>> getUsageHistorySummary() async {
+    final res = await _api.get('/api/v1/usage-history/summary');
+    return parseJsonMap(res['data']) ?? {};
+  }
+
+  Future<List<Map<String, dynamic>>> getHourlyUsageHistory() async {
+    final res = await _api.get('/api/v1/usage-history/hourly');
+    return parseJsonMapList(res['data']);
+  }
+
+  Future<List<Map<String, dynamic>>> getUsageHistoryModels(int siteId) async {
+    final res = await _api.get('/api/v1/usage-history/models/$siteId');
+    return parseJsonMapList(res['data']);
+  }
+
+  Future<void> syncUsageHistory(int siteId) async {
+    await _api.post('/api/v1/usage-history/sync/$siteId');
+  }
+
+  Future<void> syncAllUsageHistory() async {
+    await _api.post('/api/v1/usage-history/sync-all');
+  }
+
+  // ====== Report ======
+  Future<List<Map<String, dynamic>>> getReportSchedules() async {
+    final res = await _api.get('/api/v1/report/schedule/list');
+    return parseJsonMapList(res['data']);
+  }
+
+  Future<Map<String, dynamic>> createReportSchedule(
+    Map<String, dynamic> schedule,
+  ) async {
+    final res = await _api.post('/api/v1/report/schedule/create', body: schedule);
+    return parseJsonMap(res['data']) ?? {};
+  }
+
+  Future<Map<String, dynamic>> updateReportSchedule(
+    Map<String, dynamic> schedule,
+  ) async {
+    final res = await _api.post('/api/v1/report/schedule/update', body: schedule);
+    return parseJsonMap(res['data']) ?? {};
+  }
+
+  Future<void> deleteReportSchedule(int id) async {
+    await _api.delete('/api/v1/report/schedule/delete/$id');
+  }
+
+  Future<Map<String, dynamic>> testReportSchedule(
+    Map<String, dynamic> schedule,
+  ) async {
+    final res = await _api.post('/api/v1/report/schedule/test', body: schedule);
+    return parseJsonMap(res['data']) ?? {};
+  }
+
+  Future<List<Map<String, dynamic>>> getReportHistory() async {
+    final res = await _api.get('/api/v1/report/history/list');
+    return parseJsonMapList(res['data']);
+  }
+
+  Future<Map<String, dynamic>> getReportMetrics() async {
+    final res = await _api.get('/api/v1/report/metrics');
+    return parseJsonMap(res['data']) ?? {};
   }
 
   // ====== WebDAV Backup ======
   Future<Map<String, dynamic>> getWebDAVConfig() async {
-    final res = await _api.get('/api/v1/webdav/config');
+    final res = await _api.get('/api/v1/backup/webdav/config');
     return parseJsonMap(res['data']) ?? {};
   }
 
   Future<void> setWebDAVConfig(Map<String, dynamic> config) async {
-    await _api.post('/api/v1/webdav/config', body: config);
+    await _api.post('/api/v1/backup/webdav/config', body: config);
   }
 
   Future<bool> testWebDAV() async {
-    final res = await _api.post('/api/v1/webdav/test');
+    final res = await _api.post('/api/v1/backup/webdav/test');
     final data = parseJsonMap(res['data']) ?? {};
     return parseBool(data['success'] ?? data['ok']);
   }
 
   Future<void> triggerWebDAVBackup() async {
-    await _api.post('/api/v1/webdav/backup');
+    await _api.post('/api/v1/backup/webdav/backup');
   }
 
   Future<List<Map<String, dynamic>>> listWebDAVBackups() async {
-    final res = await _api.get('/api/v1/webdav/backups');
+    final res = await _api.get('/api/v1/backup/webdav/list');
     return parseJsonMapList(res['data'])
         .map((e) => parseJsonMap(e) ?? <String, dynamic>{})
         .toList();
   }
 
   Future<void> restoreWebDAVBackup(String filename) async {
-    await _api.post('/api/v1/webdav/restore', body: {'filename': filename});
+    await _api.post('/api/v1/backup/webdav/restore', body: {'filename': filename});
   }
 
   Future<void> deleteWebDAVBackup(String filename) async {
-    await _api.post('/api/v1/webdav/delete', body: {'filename': filename});
+    await _api.delete('/api/v1/backup/webdav/delete', query: {'filename': filename});
   }
 
   // ====== WebAuthn ======
-  Future<Map<String, dynamic>> getWebAuthnConfig() async {
-    final res = await _api.get('/api/v1/webauthn/config');
-    return parseJsonMap(res['data']) ?? {};
-  }
-
-  Future<void> setWebAuthnConfig(Map<String, dynamic> config) async {
-    await _api.post('/api/v1/webauthn/config', body: config);
-  }
-
   Future<List<Map<String, dynamic>>> listWebAuthnCredentials() async {
     final res = await _api.get('/api/v1/webauthn/credentials');
     return parseJsonMapList(res['data'])
@@ -1033,7 +1238,7 @@ class OctopusApi {
   }
 
   Future<void> deleteWebAuthnCredential(String id) async {
-    await _api.delete('/api/v1/webauthn/credential/$id');
+    await _api.delete('/api/v1/webauthn/credentials/$id');
   }
 
   // ====== Update ======

@@ -156,7 +156,7 @@ class _ProxyPageState extends State<ProxyPage> {
                       ),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<String>(
-                        value: type,
+                        initialValue: type,
                         decoration: InputDecoration(
                           labelText: loc.t('proxy_type'),
                           border: const OutlineInputBorder(),
@@ -171,7 +171,7 @@ class _ProxyPageState extends State<ProxyPage> {
                       ),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<String>(
-                        value: authType,
+                        initialValue: authType,
                         decoration: InputDecoration(
                           labelText: loc.t('proxy_auth_type'),
                           border: const OutlineInputBorder(),
